@@ -2,8 +2,9 @@
 api.py — Instagram API calls: session setup, inbox, pending, thread fetching.
 """
 
+import os
 import sys
-from config import SESSION_FILE, HEADERS, MOBILE_HEADERS
+from config import SESSION_FILE, HEADERS
 
 # ── Session ID ────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,17 @@ def get_session_id() -> str:
         except OSError:
             pass
     return raw
+
+
+def set_session_id(session_id: str) -> bool:
+    """Write session ID to ~/.ig_session file. Returns True on success."""
+    try:
+        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+        with open(SESSION_FILE, "w", encoding="utf-8") as f:
+            f.write(session_id.strip())
+        return True
+    except Exception:
+        return False
 
 
 # ── Session factory ───────────────────────────────────────────────────────────
@@ -94,7 +106,7 @@ def fetch_pending(session) -> list:
             return r.json().get("inbox", {}).get("threads", [])
     except Exception:
         pass
-    return []
+    return None
 
 
 def fetch_thread_items(session, thread_id: str) -> list:
@@ -107,70 +119,7 @@ def fetch_thread_items(session, thread_id: str) -> list:
             return r.json().get("thread", {}).get("items", [])
     except Exception:
         pass
-    return []
+    return None
 
 
-# ── Mobile session factory (needed for presence / profile / social) ───────────
 
-def make_mobile_session(session_id: str):
-    """Session that mimics the Instagram Android app.
-    Required for presence, profile, followers, stories endpoints."""
-    s = make_session(session_id)          # start from the regular session
-    s.headers.update(MOBILE_HEADERS)      # override UA + App-ID
-    s.headers.pop("X-Requested-With", None)   # mobile doesn't send this
-    s.headers.pop("Referer", None)
-    return s
-
-
-# ── Mobile-only API helpers ───────────────────────────────────────────────────
-
-def fetch_profile(mobile_session) -> dict:
-    """Fetch your own Instagram profile (name, bio, follower count, etc.)."""
-    try:
-        r = mobile_session.get(
-            "https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
-            timeout=12)
-        if r.status_code == 200:
-            return r.json().get("user", {})
-    except Exception:
-        pass
-    return {}
-
-
-def fetch_followers(mobile_session, my_id: str, count: int = 50) -> list:
-    """Fetch your followers list (first page, up to `count` users)."""
-    try:
-        r = mobile_session.get(
-            f"https://www.instagram.com/api/v1/friendships/{my_id}/followers/?count={count}",
-            timeout=12)
-        if r.status_code == 200:
-            return r.json().get("users", [])
-    except Exception:
-        pass
-    return []
-
-
-def fetch_following(mobile_session, my_id: str, count: int = 50) -> list:
-    """Fetch users you follow (first page, up to `count` users)."""
-    try:
-        r = mobile_session.get(
-            f"https://www.instagram.com/api/v1/friendships/{my_id}/following/?count={count}",
-            timeout=12)
-        if r.status_code == 200:
-            return r.json().get("users", [])
-    except Exception:
-        pass
-    return []
-
-
-def fetch_stories_tray(mobile_session) -> list:
-    """Fetch the stories tray — which of your contacts currently have active stories."""
-    try:
-        r = mobile_session.get(
-            "https://www.instagram.com/api/v1/feed/reels_tray/",
-            timeout=12)
-        if r.status_code == 200:
-            return r.json().get("tray", [])
-    except Exception:
-        pass
-    return []

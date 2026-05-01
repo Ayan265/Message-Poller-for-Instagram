@@ -44,23 +44,39 @@ def is_seen_dirty() -> bool:
         return _seen_dirty
 
 
+def is_new_msg(msg_id: str) -> bool:
+    """Return True if this msg_id is new. Marks it as seen atomically."""
+    global _seen_dirty
+    with _seen_lock:
+        if msg_id in _seen_ids:
+            return False
+        _seen_ids.add(msg_id)
+        _seen_list.append(msg_id)
+        _seen_dirty = True
+        if len(_seen_list) > SEEN_MAX:
+            trim = SEEN_MAX // 2
+            _seen_list[:] = _seen_list[-trim:]
+            _seen_ids.clear()
+            _seen_ids.update(_seen_list)
+        return True
+
+
 # ── Atomic JSON writes ────────────────────────────────────────────────────────
 
 def atomic_write_json(path: str, data) -> None:
     """Write JSON atomically via a temp file (safe against crashes)."""
     dir_ = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=dir_, suffix=".tmp")
     try:
-        fd, tmp = tempfile.mkstemp(dir=dir_, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            os.replace(tmp, path)
-        except Exception:
-            os.unlink(tmp)
-            raise
-    except Exception:
-        with open(path, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def load_json(path: str, default):
@@ -140,3 +156,5 @@ def dedup_msgs(msgs: list) -> list:
             seen.add(mid)
         clean.append(m)
     return clean
+
+

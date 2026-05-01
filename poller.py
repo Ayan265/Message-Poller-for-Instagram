@@ -6,14 +6,37 @@ import sys, time, queue, threading, random
 from datetime import datetime
 
 from config  import IDLE_INTERVAL, BURST_INTERVAL, BURST_TIMEOUT, BACKOFF_MAX
-from api     import (make_session, make_mobile_session, get_my_id,
+from api     import (make_session, get_my_id,
                      fetch_inbox, fetch_pending, fetch_thread_items)
 from storage import save_msg, load_seen_ids, flush_seen_ids, is_seen_dirty
 from notify  import notify
-from presence import PresenceTracker
+from utils import C_CYAN, C_GREEN, C_YELLOW, C_RED, C_RESET
 
 
 # ── Message processing ────────────────────────────────────────────────────────
+
+def _extract_message_text(item: dict) -> str:
+    """Extract a human-readable text representation of an Instagram message item."""
+    item_type = item.get("item_type", "")
+    if item_type == "text":
+        return item.get("text", "").strip()
+    if item_type in ("voice_media", "clip"):
+        return "🎤 [Voice Message]"
+    if item_type in ("media", "raven_media", "visual_media"):
+        return "📷 [Photo/Video]"
+    if item_type == "like":
+        return "❤️ [Liked a message]"
+    if item_type == "animated_media":
+        return "🎞️ [GIF/Sticker]"
+    if item_type == "reel_share":
+        return "🔄 [Shared a Reel]"
+    if item_type == "link":
+        return "🔗 [Link]"
+    if item_type == "action_log":
+        return f"ℹ️ [{item.get('action_log', {}).get('description', 'Action')}]"
+    if item_type == "placeholder":
+        return f"ℹ️ [Placeholder: {item.get('placeholder', {}).get('message', 'Message')}]"
+    return f"📦 [{item_type}]"
 
 def process_threads(threads: list, session, my_id: str,
                     msg_queue: queue.Queue) -> int:
@@ -34,31 +57,11 @@ def process_threads(threads: list, session, my_id: str,
 
         # Only make the extra per-thread request if inbox gave us nothing
         if not items and thread.get("has_newer", False):
-            items = fetch_thread_items(session, thread_id)
+            items = fetch_thread_items(session, thread_id) or []
 
         # Instagram returns messages newest-first. Reverse to process chronologically.
         for item in reversed(items):
-            item_type = item.get("item_type", "")
-            if item_type == "text":
-                text = item.get("text", "").strip()
-            elif item_type == "voice_media":
-                text = "🎤 [Voice Message]"
-            elif item_type in ("media", "raven_media", "visual_media"):
-                text = "📷 [Photo/Video]"
-            elif item_type == "like":
-                text = "❤️ [Liked a message]"
-            elif item_type == "animated_media":
-                text = "🎞️ [GIF/Sticker]"
-            elif item_type == "reel_share":
-                text = "🔄 [Shared a Reel]"
-            elif item_type == "link":
-                text = "🔗 [Link]"
-            elif item_type == "action_log":
-                text = f"ℹ️ [{item.get('action_log', {}).get('description', 'Action')}]"
-            elif item_type == "placeholder":
-                text = f"ℹ️ [Placeholder: {item.get('placeholder', {}).get('message', 'Message')}]"
-            else:
-                text = f"📦 [{item_type}]"
+            text = _extract_message_text(item)
             
             item_user_id = str(item.get("user_id", ""))
             is_mine = item_user_id == my_id
@@ -106,20 +109,19 @@ def _build_user_map(threads: list) -> dict:
 
 # ── Background poll worker ────────────────────────────────────────────────────
 
-def poll_worker(session, mobile_session, my_id: str,
+def poll_worker(session, my_id: str,
                 msg_queue: queue.Queue,
                 status_queue: queue.Queue,
                 stop_event: threading.Event) -> None:
-    """Runs in a background thread. Polls messages + presence with adaptive intervals."""
+    """Runs in a background thread. Polls messages with adaptive intervals."""
     backoff    = IDLE_INTERVAL
     last_msg_t = 0.0
-    tracker    = PresenceTracker()
 
     while not stop_event.is_set():
         try:
-            # ── Message + presence polling (inbox carries both) ────────────────
+            # ── Message polling ──────────────────────────────────────────────────────────
             threads = fetch_inbox(session)
-            pending = fetch_pending(session)
+            pending = fetch_pending(session) or []
             all_threads = threads + pending
 
             new = process_threads(all_threads, session, my_id, msg_queue)
@@ -133,14 +135,6 @@ def poll_worker(session, mobile_session, my_id: str,
             backoff  = BURST_INTERVAL if in_burst else IDLE_INTERVAL
             mode     = "burst" if in_burst else "idle"
             status_queue.put(("ok", backoff, mode))
-
-            # ── Presence polling ────────────────────────────────────────
-            try:
-                events = tracker.update_from_threads(all_threads, my_id)
-                for ev in events:
-                    msg_queue.put(ev)   # type == "presence"
-            except Exception:
-                pass   # presence errors are non-fatal
 
         except RuntimeError as e:
             err = str(e)
@@ -179,16 +173,14 @@ def run(session_id: str) -> None:
 
     from config import SAVE_FILE
     print("=" * 58)
-    print("  Instagram Poller v5")
+    print("  Instagram Poller v5 (Stealth)")
     print(f"  Session  : ~/.ig_session ✓")
     print(f"  Messages : ~{BURST_INTERVAL}s burst / ~{IDLE_INTERVAL}s idle (with jitter)")
-    print(f"  Presence : Detected from message data (🟢 online alerts enabled)")
     print(f"  Saving to: {SAVE_FILE}")
     print("  Ctrl+C to stop")
     print("=" * 58 + "\n")
 
     session        = make_session(session_id)
-    mobile_session = make_mobile_session(session_id)
     my_id          = get_my_id(session)
     if my_id:
         print(f"  Logged in ✓  (uid: {my_id})\n")
@@ -201,18 +193,11 @@ def run(session_id: str) -> None:
 
     worker = threading.Thread(
         target=poll_worker,
-        args=(session, mobile_session, my_id, msg_queue, status_queue, stop_event),
+        args=(session, my_id, msg_queue, status_queue, stop_event),
         daemon=True,
         name="ig-poller",
     )
     worker.start()
-
-    # ANSI Colors for Ubuntu terminal
-    C_CYAN   = "\033[96m"
-    C_GREEN  = "\033[92m"
-    C_YELLOW = "\033[93m"
-    C_RED    = "\033[91m"
-    C_RESET  = "\033[0m"
 
     try:
         while True:
@@ -224,19 +209,11 @@ def run(session_id: str) -> None:
 
                 msg_type = msg.get("type", "msg")
 
-                if msg_type == "presence":
-                    if msg["event"] == "online":
-                        print(f"🟢  [{msg['ts']}]  {C_CYAN}{msg['username']}{C_RESET} just came {C_GREEN}online{C_RESET}")
-                        notify(msg["username"], "🟢 Just came online")
-                    else:
-                        print(f"🔴  [{msg['ts']}]  {C_CYAN}{msg['username']}{C_RESET} went {C_RED}offline{C_RESET}")
-
-                else:  # regular message
-                    if msg["is_mine"]:
-                        print(f"📤  [{msg['ts']}]  {C_GREEN}YOU{C_RESET} → {C_CYAN}{msg['sender']}{C_RESET}: {msg['text']}")
-                    else:
-                        print(f"📨  [{msg['ts']}]  {C_CYAN}{msg['sender']}{C_RESET} → {C_GREEN}YOU{C_RESET}: {C_YELLOW}{msg['text']}{C_RESET}")
-                        notify(msg["sender"], msg["text"])
+                if msg["is_mine"]:
+                    print(f"📤  [{msg['ts']}]  {C_GREEN}YOU{C_RESET} → {C_CYAN}{msg['sender']}{C_RESET}: {msg['text']}")
+                else:
+                    print(f"📨  [{msg['ts']}]  {C_CYAN}{msg['sender']}{C_RESET} → {C_GREEN}YOU{C_RESET}: {C_YELLOW}{msg['text']}{C_RESET}")
+                    notify(msg["sender"], msg["text"])
 
                 printed_msg = True
 

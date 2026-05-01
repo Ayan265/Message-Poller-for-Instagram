@@ -3,34 +3,29 @@
 main.py — Entry point for the Instagram Message Poller.
 
 Usage:
-  python3 main.py                      Start the live poller (messages + online alerts)
+  python3 main.py                      Start the live poller
   python3 main.py --view [N]           Show last N messages (default 50)
   python3 main.py --chat <username>    Show conversation with one person
   python3 main.py --contacts           List all contacts with message counts
   python3 main.py --clean              Deduplicate the saved messages file
 
-  python3 main.py --online             Who is online right now (one-shot)
-  python3 main.py --whoami             Your own profile info
-  python3 main.py --followers [N]      Your followers list (default 50)
-  python3 main.py --following [N]      Who you follow (default 50)
-  python3 main.py --stories            Which contacts have active stories
 
   python3 main.py --autostart          Install systemd autostart service
   python3 main.py --stop               Remove systemd autostart service
+  
+  python3 main.py --install-ext        Install the Firefox Extension Native Host
 """
 
 import sys, os
 
-# Allow importing sibling modules when run directly
+# Allow importing sibling modules when run directlyvs cdoe telling me vvvsfjiasofvvs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import argparse
 
-from api     import get_session_id
+from api     import get_session_id, set_session_id
 from poller  import run as run_poller
-from viewer  import (cmd_view, cmd_chat, cmd_contacts, cmd_clean,
-                     cmd_online, cmd_whoami, cmd_followers, cmd_following,
-                     cmd_stories)
+from viewer  import (cmd_view, cmd_chat, cmd_contacts, cmd_clean)
 from service import cmd_autostart, cmd_stop
 
 
@@ -43,7 +38,7 @@ Examples:
   python3 main.py                      # Start live poller
   python3 main.py --view 100           # Show last 100 messages
   python3 main.py --chat johndoe       # Chat with johndoe
-  python3 main.py --online             # Check who's online
+  python3 main.py --set-session ABC123  # Update session ID
         """
     )
     
@@ -55,20 +50,14 @@ Examples:
                         help="List all contacts with message counts")
     parser.add_argument("--clean", action="store_true",
                         help="Deduplicate the saved messages file")
-    parser.add_argument("--online", action="store_true",
-                        help="Who is online right now (one-shot)")
-    parser.add_argument("--whoami", action="store_true",
-                        help="Show your own profile info")
-    parser.add_argument("--followers", nargs="?", const=50, type=int, metavar="N",
-                        help="Show your followers (default: 50)")
-    parser.add_argument("--following", nargs="?", const=50, type=int, metavar="N",
-                        help="Show who you follow (default: 50)")
-    parser.add_argument("--stories", action="store_true",
-                        help="Show contacts with active stories")
     parser.add_argument("--autostart", action="store_true",
                         help="Install systemd autostart service")
     parser.add_argument("--stop", action="store_true",
                         help="Remove systemd autostart service")
+    parser.add_argument("--install-ext", action="store_true",
+                        help="Install Firefox Extension native host")
+    parser.add_argument("--set-session", type=str, metavar="SESSION_ID",
+                        help="Update Instagram session ID (saves to ~/.ig_session)")
     
     args = parser.parse_args()
 
@@ -89,27 +78,6 @@ Examples:
         cmd_chat(args.chat)
         return
 
-    # ── Social / profile commands (need live session) ─────────────────────────
-    if args.online:
-        cmd_online()
-        return
-
-    if args.whoami:
-        cmd_whoami()
-        return
-
-    if args.followers is not None:
-        cmd_followers(args.followers)
-        return
-
-    if args.following is not None:
-        cmd_following(args.following)
-        return
-
-    if args.stories:
-        cmd_stories()
-        return
-
     # ── Service management ────────────────────────────────────────────────────
     if args.autostart:
         cmd_autostart(os.path.abspath(__file__))
@@ -117,6 +85,18 @@ Examples:
 
     if args.stop:
         cmd_stop()
+        return
+
+    if args.install_ext:
+        import install_host
+        install_host.main()
+        return
+
+    if args.set_session:
+        if set_session_id(args.set_session):
+            print(f"✅  Session ID updated in {os.path.expanduser('~/.ig_session')}")
+        else:
+            print("❌  Failed to write session file.")
         return
 
     # ── Live poller (default) ─────────────────────────────────────────────────

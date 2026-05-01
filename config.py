@@ -40,16 +40,3 @@ HEADERS = {
     "X-Requested-With" : "XMLHttpRequest",
     "Referer"          : "https://www.instagram.com/",
 }
-
-# ── HTTP headers — mimics Instagram Android app (mobile-only endpoints) ───────
-# NOTE: This is a static User-Agent for a specific Android app version.
-# This may also need updating if issues arise.
-MOBILE_HEADERS = {
-    "User-Agent"      : (
-        "Instagram/282.0.0.34.119 Android "
-        "(33/13; 420dpi; 1080x2400; samsung; SM-G991B; o1s; exynos2100; en_US; 458229258)"
-    ),
-    "Accept"          : "*/*",
-    "Accept-Language" : "en-US,en;q=0.9",
-    "X-IG-App-ID"     : "567067343352427",
-}

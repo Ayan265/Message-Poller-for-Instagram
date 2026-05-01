@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>IG Poller Dashboard</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+  <div class="glass-panel">
+    <header>
+      <div class="header-left">
+        <div class="logo-icon">
+          <i class="fab fa-instagram"></i>
+        </div>
+        <h1>IG Poller</h1>
+      </div>
+      <div class="status-indicator">
+        <button id="refresh-btn" class="refresh-btn" title="Refresh (Ctrl+R)">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+        <div class="status-dot-wrapper">
+          <div class="status-dot" id="server-dot"></div>
+        </div>
+        <span id="server-text" class="status-text">Connecting...</span>
+      </div>
+    </header>
+
+    <!-- Session Status Bar -->
+    <div id="session-bar" class="session-bar">
+      <div class="session-info">
+        <div class="session-status-group">
+          <div class="session-dot" id="session-dot"></div>
+          <span id="session-status" class="session-status">Checking session...</span>
+        </div>
+        <span id="session-preview" class="session-preview"></span>
+      </div>
+      <button id="renew-session-btn" class="renew-btn" title="Update Session">
+        <i class="fas fa-key"></i> Renew
+      </button>
+    </div>
+
+    <!-- Inbox View -->
+    <div id="inbox-view" class="list-container scrollbar">
+    </div>
+
+    <!-- Chat View (Hidden initially) -->
+    <div id="chat-view" class="chat-container scrollbar" style="display: none;">
+      <div class="chat-header">
+        <button id="chat-back-btn" class="back-btn">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <div class="chat-contact-info">
+          <div class="chat-avatar" id="chat-avatar"></div>
+          <span id="chat-contact-name" class="chat-name">Username</span>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages-container scrollbar">
+      </div>
+    </div>
+
+    <!-- Session Renewal Modal -->
+    <div id="session-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-icon">
+            <i class="fas fa-sync-alt"></i>
+          </div>
+          <h2>Renew Session</h2>
+        </div>
+        <p class="modal-desc">Your Instagram session has expired. Paste a fresh <code>sessionid</code> cookie value below.</p>
+        <textarea id="new-session-input" class="session-input" placeholder="Paste new sessionid here (from browser cookies)"></textarea>
+        <div class="modal-actions">
+          <button id="cancel-session-btn" class="btn-cancel">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+          <button id="save-session-btn" class="btn-save">
+            <i class="fas fa-check"></i> Save & Restart
+          </button>
+        </div>
+        <div class="modal-help">
+          <i class="fas fa-info-circle"></i>
+          <span>How to get sessionid: Log into Instagram → F12 → Storage → Cookies → search "sessionid" → copy value</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
