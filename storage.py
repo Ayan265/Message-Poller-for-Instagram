@@ -103,12 +103,12 @@ _save_lock = threading.Lock()
 
 
 def save_msg(sender: str, message: str, thread_id: str,
-             msg_id: str, direction: str = "received") -> bool:
+             msg_id: str, direction: str = "received", msg_time: str = None) -> bool:
     """Persist a new message. Returns True if it was actually new."""
     if not is_new_msg(msg_id):
         return False
 
-    now   = datetime.now().isoformat(timespec="seconds")
+    now   = msg_time or datetime.now().isoformat(timespec="seconds")
     entry = {
         "saved_at"  : now,
         "app"       : "Instagram",

@@ -42,7 +42,7 @@ def process_threads(threads: list, session, my_id: str,
                     msg_queue: queue.Queue) -> int:
     """Extract new text messages from thread list; put them in the queue."""
     count = 0
-    for thread in threads:
+    for thread in reversed(threads):
         thread_id   = thread.get("thread_id", "")
         users       = thread.get("users", [])
         user_map    = {str(u.get("pk")): u.get("username", "unknown") for u in users}
@@ -82,13 +82,22 @@ def process_threads(threads: list, session, my_id: str,
                 partner_name = default_partner
 
             direction = "sent" if is_mine else "received"
-            if save_msg(partner_name, text, thread_id, msg_id, direction):
+            
+            msg_time = None
+            ts_us = item.get("timestamp")
+            if ts_us:
+                try:
+                    msg_time = datetime.fromtimestamp(int(ts_us) / 1000000.0).isoformat(timespec="seconds")
+                except Exception:
+                    pass
+
+            if save_msg(partner_name, text, thread_id, msg_id, direction, msg_time):
                 msg_queue.put({
                     "type"    : "msg",
                     "is_mine" : is_mine,
                     "sender"  : partner_name,
                     "text"    : text,
-                    "ts"      : datetime.now().strftime("%H:%M:%S"),
+                    "ts"      : msg_time.split("T")[1] if msg_time else datetime.now().strftime("%H:%M:%S"),
                 })
                 count += 1
     return count

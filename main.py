@@ -18,7 +18,7 @@ Usage:
 
 import sys, os
 
-# Allow importing sibling modules when run directlyvs cdoe telling me vvvsfjiasofvvs
+# Allow importing sibling modules when run directly
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import argparse

@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionStatus = document.getElementById('session-status');
   const sessionPreview = document.getElementById('session-preview');
   const renewSessionBtn = document.getElementById('renew-session-btn');
+  const aboutBtn = document.getElementById('about-btn');
+  const aboutModal = document.getElementById('about-modal');
+  const closeAboutBtn = document.getElementById('close-about-btn');
   const sessionModal = document.getElementById('session-modal');
   const newSessionInput = document.getElementById('new-session-input');
   const cancelSessionBtn = document.getElementById('cancel-session-btn');
@@ -31,12 +34,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Session Management ──────────────────────────────────────────────────────
 
+  let isPremiumMode = false;
+
   async function checkSessionStatus() {
     try {
       const data = await browser.runtime.sendNativeMessage(
         "com.linuxayan.ig_poller",
         { action: "get_session" }
       );
+      isPremiumMode = true;
       if (data.status === "ok") {
         updateSessionUI(data.has_session, data.session_preview);
         window.DEBUG.sessionStatus = data.has_session ? 'valid' : 'invalid';
@@ -50,11 +56,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
       }
     } catch (err) {
-      console.error("Session check failed:", err);
-      updateSessionUI(false, "");
-      window.DEBUG.sessionStatus = 'error';
-      window.DEBUG.lastError = err.message;
-      return false;
+      // Freemium Mode
+      isPremiumMode = false;
+      updateSessionUI(true, "Browser auto-auth");
+      window.DEBUG.sessionStatus = 'valid';
+      showFreemiumBanner();
+      return true;
+    }
+  }
+
+  function showFreemiumBanner() {
+    let banner = document.getElementById('freemium-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'freemium-banner';
+      banner.innerHTML = `
+        <div style="background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045); padding: 10px; color: white; text-align: center; font-size: 12px; font-weight: 600; border-radius: 8px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(225, 48, 108, 0.3);">
+          <i class="fas fa-rocket"></i> Get 24/7 background polling & notifications (Free Pro setup)
+        </div>
+      `;
+      banner.addEventListener('click', () => {
+        browser.tabs.create({ url: "https://github.com/linuxayan/ig_poller" });
+      });
+      document.querySelector('.header').after(banner);
     }
   }
 
@@ -149,10 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let refreshTimeout = null;
 
-  function setServerStatus(connected) {
+  function setServerStatus(connected, type = 'Native Host') {
     if (connected) {
       serverDot.classList.add('online');
-      serverText.textContent = 'Connected';
+      serverText.textContent = `Connected (${type})`;
     } else {
       serverDot.classList.remove('online');
       serverText.textContent = 'Disconnected';
@@ -203,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return colors[Math.abs(hash) % colors.length];
   }
 
-  function openChat(sender) {
+  function openChat(sender, isAutoRefresh = false) {
     inboxView.style.display = 'none';
     chatView.style.display = 'flex';
     chatContactName.textContent = sender;
@@ -212,11 +236,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const threadMsgs = allMessages.filter(m => m.sender === sender).reverse();
 
+    if (isAutoRefresh && chatMessagesContainer.children.length > 0 && threadMsgs.length > 0) {
+      const lastRenderedMsgId = chatMessagesContainer.lastElementChild.dataset.msgId;
+      if (lastRenderedMsgId === threadMsgs[threadMsgs.length - 1].msg_id) {
+        return;
+      }
+    }
+
     chatMessagesContainer.innerHTML = '';
     threadMsgs.forEach((msg, idx) => {
       const isSent = msg.direction === 'sent';
       const bubble = document.createElement('div');
       bubble.className = `chat-bubble ${isSent ? 'sent' : 'received'}`;
+      bubble.dataset.msgId = msg.msg_id;
       bubble.style.animationDelay = `${idx * 30}ms`;
       bubble.innerHTML = `
         <div class="msg-text">${escapeHtml(msg.message)}</div>
@@ -293,12 +325,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadMessages() {
     try {
-      const data = await browser.runtime.sendNativeMessage(
-        "com.linuxayan.ig_poller",
-        { action: "get_data" }
-      );
-      setServerStatus(true);
-      allMessages = data.messages || [];
+      if (isPremiumMode) {
+        const data = await browser.runtime.sendNativeMessage(
+          "com.linuxayan.ig_poller",
+          { action: "get_data" }
+        );
+        setServerStatus(true, "Pro Mode");
+        allMessages = data.messages || [];
+      } else {
+        const res = await browser.storage.local.get(["freemiumMessages", "igFetchError"]);
+        allMessages = res.freemiumMessages || [];
+        setServerStatus(true, "Free Mode");
+        
+        if (res.igFetchError === "not_logged_in" && allMessages.length === 0) {
+          throw new Error("NOT_LOGGED_IN");
+        }
+      }
       lastUpdateTime = Date.now();
       window.DEBUG.lastFetchTime = new Date().toISOString();
       window.DEBUG.messagesCount = allMessages.length;
@@ -308,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         const currentChat = chatContactName.textContent;
         if (currentChat) {
-          openChat(currentChat);
+          openChat(currentChat, true);
         }
       }
 
@@ -319,16 +361,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(() => {});
       }
     } catch (err) {
-      console.error("Native Messaging Error:", err);
+      console.error("Data Fetch Error:", err);
       setServerStatus(false);
       window.DEBUG.lastError = err.message;
-      inboxView.innerHTML = `
-        <div class="empty-state">
-          <i class="fas fa-plug"></i>
-          <div>Could not connect to native host</div>
-          <div style="font-size:11px;margin-top:4px;opacity:0.6">Make sure you ran:<br><code>python3 main.py --install-ext</code></div>
-        </div>
-      `;
+      
+      if (!isPremiumMode && err.message === "NOT_LOGGED_IN") {
+         inboxView.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-cookie-bite"></i>
+            <div>Please log into Instagram.com first</div>
+            <div style="font-size:11px;margin-top:4px;opacity:0.6">The Free mode relies on your browser session</div>
+          </div>
+        `;
+      } else if (!isPremiumMode && allMessages.length === 0) {
+         inboxView.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>Error fetching messages</div>
+            <div style="font-size:11px;margin-top:4px;opacity:0.6">${escapeHtml(err.message)}</div>
+          </div>
+        `;
+      } else if (isPremiumMode) {
+        inboxView.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-plug"></i>
+            <div>Could not connect to native host</div>
+            <div style="font-size:11px;margin-top:4px;opacity:0.6">Make sure you ran:<br><code>python3 main.py --install-ext</code></div>
+          </div>
+        `;
+      }
     }
   }
 
@@ -336,7 +397,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refreshBtn.addEventListener('click', () => {
     refreshBtn.classList.add('spinning');
-    loadMessages().finally(() => {
+    const fetchPromise = !isPremiumMode 
+      ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {})
+      : Promise.resolve();
+
+    fetchPromise.then(() => loadMessages()).finally(() => {
       setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
     });
   });
@@ -346,18 +411,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
       e.preventDefault();
       refreshBtn.classList.add('spinning');
-      loadMessages().finally(() => {
+      const fetchPromise = !isPremiumMode 
+        ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {})
+        : Promise.resolve();
+
+      fetchPromise.then(() => loadMessages()).finally(() => {
         setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
       });
     }
     if (e.key === 'Escape') {
       hideSessionModal();
+      aboutModal.style.display = 'none';
     }
   });
 
   chatBackBtn.addEventListener('click', () => {
     chatView.style.display = 'none';
     inboxView.style.display = 'flex';
+    renderInbox(allMessages);
+  });
+
+  aboutBtn.addEventListener('click', () => {
+    aboutModal.style.display = 'flex';
+  });
+
+  closeAboutBtn.addEventListener('click', () => {
+    aboutModal.style.display = 'none';
+  });
+
+  aboutModal.addEventListener('click', (e) => {
+    if (e.target === aboutModal) {
+      aboutModal.style.display = 'none';
+    }
   });
 
   renewSessionBtn.addEventListener('click', showSessionModal);
@@ -379,8 +464,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Initialization ───────────────────────────────────────────────────────────
 
-  checkSessionStatus();
-  loadMessages();
+  checkSessionStatus().then(() => {
+    loadMessages();
+  });
 
   // Poll every 5 seconds
   setInterval(loadMessages, 5000);

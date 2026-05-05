@@ -10,7 +10,6 @@ from config import SESSION_FILE, HEADERS
 
 def get_session_id() -> str:
     """Read session ID from IG_SESSION env var or ~/.ig_session file."""
-    import os
     raw = os.environ.get("IG_SESSION", "").strip()
     if not raw and os.path.exists(SESSION_FILE):
         try:
@@ -23,10 +22,14 @@ def get_session_id() -> str:
 
 def set_session_id(session_id: str) -> bool:
     """Write session ID to ~/.ig_session file. Returns True on success."""
+    from urllib.parse import unquote
+    # Automatically decode %3A to : if the user pasted a URL-encoded string
+    clean_id = unquote(session_id.strip())
+    
     try:
         os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
         with open(SESSION_FILE, "w", encoding="utf-8") as f:
-            f.write(session_id.strip())
+            f.write(clean_id)
         return True
     except Exception:
         return False

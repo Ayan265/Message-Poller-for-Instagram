@@ -60,10 +60,10 @@ def main():
                     send_message({"status": "error", "message": "Failed to write session file"})
 
             else:
-                send_message({"error": "Unknown action"})
+                send_message({"status": "error", "message": "Unknown action"})
 
         except Exception as e:
-            send_message({"error": str(e)})
+            send_message({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
     main()

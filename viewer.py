@@ -11,7 +11,7 @@ Commands:
 from collections import Counter
 from storage import load_json, atomic_write_json, dedup_msgs
 from config  import SAVE_FILE
-from utils   import C_CYAN, C_GREEN, C_YELLOW, C_RED, C_RESET, format_ago
+from utils   import C_CYAN, C_GREEN, C_YELLOW, C_RED, C_RESET
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,7 +53,6 @@ def cmd_view(n: int = 50) -> None:
     if not msgs:
         print("No saved messages yet — run the poller first.")
         return
-    window = list(reversed(msgs[:n]))    # newest-first → oldest-first
     window = list(reversed(msgs[:n]))    # newest-first → oldest-first
     
     print(f"\n{'='*62}")

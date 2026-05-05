@@ -38,9 +38,14 @@
         </div>
         <span id="session-preview" class="session-preview"></span>
       </div>
-      <button id="renew-session-btn" class="renew-btn" title="Update Session">
-        <i class="fas fa-key"></i> Renew
-      </button>
+      <div style="display:flex; gap: 8px;">
+        <button id="about-btn" class="renew-btn" style="background: rgba(255,255,255,0.08); border-color: transparent;" title="About">
+          <i class="fas fa-info-circle"></i>
+        </button>
+        <button id="renew-session-btn" class="renew-btn" title="Update Session">
+          <i class="fas fa-key"></i> Renew
+        </button>
+      </div>
     </div>
 
     <!-- Inbox View -->
@@ -84,6 +89,25 @@
         <div class="modal-help">
           <i class="fas fa-info-circle"></i>
           <span>How to get sessionid: Log into Instagram → F12 → Storage → Cookies → search "sessionid" → copy value</span>
+        </div>
+      </div>
+    </div>
+    <!-- About Modal -->
+    <div id="about-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-icon" style="background: linear-gradient(135deg, #405de6, #5851db);">
+            <i class="fas fa-info"></i>
+          </div>
+          <h2>About IG Poller</h2>
+        </div>
+        <p class="modal-desc" style="margin-bottom: 12px;"><strong>How to use:</strong> Ensure you are logged into Instagram in this browser. The extension automatically fetches messages when the browser is active.</p>
+        <p class="modal-desc" style="color: var(--text-main); margin-bottom: 6px;"><strong><i class="fas fa-bolt" style="color: #ffcc00;"></i> Pro Tip:</strong></p>
+        <p class="modal-desc">For 24/7 background polling, download the real <code>ig_poller</code> python script and run it on your system! It works continuously even when your browser is closed, and is extremely lightweight so it won't slow down low-end devices.</p>
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button id="close-about-btn" class="btn-save" style="width: 100%;">
+            Got it!
+          </button>
         </div>
       </div>
     </div>
