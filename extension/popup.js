@@ -173,10 +173,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-      <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-      <span>${message}</span>
-    `;
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}`;
+    const span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(icon);
+    toast.appendChild(span);
 
     document.body.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
@@ -268,10 +270,16 @@ document.addEventListener('DOMContentLoaded', () => {
       bubble.className = `chat-bubble ${isSent ? 'sent' : 'received'}`;
       bubble.dataset.msgId = msg.msg_id;
       bubble.style.animationDelay = `${idx * 30}ms`;
-      bubble.innerHTML = `
-        <div class="msg-text">${escapeHtml(msg.message)}</div>
-        <div class="chat-time">${formatTime(msg.saved_at)}</div>
-      `;
+      const textDiv = document.createElement('div');
+      textDiv.className = 'msg-text';
+      textDiv.textContent = msg.message;
+
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'chat-time';
+      timeDiv.textContent = formatTime(msg.saved_at);
+
+      bubble.appendChild(textDiv);
+      bubble.appendChild(timeDiv);
       chatMessagesContainer.appendChild(bubble);
     });
 
@@ -322,20 +330,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const row = document.createElement('div');
       row.className = 'inbox-row';
-      row.innerHTML = `
-        <div class="inbox-avatar" style="background: ${getAvatarColor(contact)}">${getAvatarInitial(contact)}</div>
-        <div class="inbox-details">
-          <div class="inbox-header">
-            <span class="inbox-name">${escapeHtml(contact)}</span>
-            <span class="inbox-time">${escapeHtml(timeAgo)}</span>
-          </div>
-          <div class="inbox-preview">
-            ${isSent ? '<i class="fas fa-paper-plane sent-icon" style="font-size:10px;margin-right:4px;color:var(--primary)"></i>' : ''}
-            ${escapeHtml(latestMsg.message.length > 70 ? latestMsg.message.substring(0, 70) + '...' : latestMsg.message)}
-          </div>
-        </div>
-        ${!isSent ? '<div class="unread-indicator"></div>' : ''}
-      `;
+      const avatarDiv = document.createElement('div');
+      avatarDiv.className = 'inbox-avatar';
+      avatarDiv.style.background = getAvatarColor(contact);
+      avatarDiv.textContent = getAvatarInitial(contact);
+
+      const detailsDiv = document.createElement('div');
+      detailsDiv.className = 'inbox-details';
+
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'inbox-header';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'inbox-name';
+      nameSpan.textContent = contact;
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'inbox-time';
+      timeSpan.textContent = timeAgo;
+
+      headerDiv.appendChild(nameSpan);
+      headerDiv.appendChild(timeSpan);
+
+      const previewDiv = document.createElement('div');
+      previewDiv.className = 'inbox-preview';
+
+      if (isSent) {
+        const sentIcon = document.createElement('i');
+        sentIcon.className = 'fas fa-paper-plane sent-icon';
+        sentIcon.style.cssText = 'font-size:10px;margin-right:4px;color:var(--primary)';
+        previewDiv.appendChild(sentIcon);
+      }
+
+      const msgText = document.createTextNode(latestMsg.message.length > 70 ? latestMsg.message.substring(0, 70) + '...' : latestMsg.message);
+      previewDiv.appendChild(msgText);
+
+      detailsDiv.appendChild(headerDiv);
+      detailsDiv.appendChild(previewDiv);
+
+      row.appendChild(avatarDiv);
+      row.appendChild(detailsDiv);
+
+      if (!isSent) {
+        const unreadInd = document.createElement('div');
+        unreadInd.className = 'unread-indicator';
+        row.appendChild(unreadInd);
+      }
       row.addEventListener('click', () => openChat(contact));
       inboxView.appendChild(row);
     });
@@ -392,13 +432,24 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
       } else if (!isPremiumMode && allMessages.length === 0) {
-        inboxView.innerHTML = `
-          <div class="empty-state">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>Error fetching messages</div>
-            <div style="font-size:11px;margin-top:4px;opacity:0.6">${escapeHtml(err.message)}</div>
-          </div>
-        `;
+        inboxView.innerHTML = '';
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-exclamation-triangle';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.textContent = 'Error fetching messages';
+
+        const msgDiv = document.createElement('div');
+        msgDiv.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+        msgDiv.textContent = err.message;
+
+        emptyState.appendChild(icon);
+        emptyState.appendChild(titleDiv);
+        emptyState.appendChild(msgDiv);
+        inboxView.appendChild(emptyState);
       } else if (isPremiumMode) {
         inboxView.innerHTML = `
           <div class="empty-state">
