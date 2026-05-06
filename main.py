@@ -56,8 +56,8 @@ Examples:
                         help="Remove systemd autostart service")
     parser.add_argument("--install-ext", action="store_true",
                         help="Install Firefox Extension native host")
-    parser.add_argument("--set-session", type=str, metavar="SESSION_ID",
-                        help="Update Instagram session ID (saves to ~/.ig_session)")
+    parser.add_argument("--set-session", nargs="?", const="PROMPT", type=str, metavar="SESSION_ID",
+                        help="Update Instagram session ID interactively or via argument")
     
     args = parser.parse_args()
 
@@ -93,7 +93,14 @@ Examples:
         return
 
     if args.set_session:
-        if set_session_id(args.set_session):
+        val = args.set_session
+        if val == "PROMPT":
+            val = input("Paste your Instagram sessionid: ").strip()
+            if not val:
+                print("❌  No session provided. Exiting.")
+                sys.exit(1)
+                
+        if set_session_id(val):
             print(f"✅  Session ID updated in {os.path.expanduser('~/.ig_session')}")
         else:
             print("❌  Failed to write session file.")
@@ -103,8 +110,14 @@ Examples:
     session_id = get_session_id()
     if not session_id:
         print("\n❌  No session cookie found.")
-        print("    Fix:  echo 'your_sessionid' > ~/.ig_session\n")
-        sys.exit(1)
+        print("Please provide your sessionid (Find it in your browser: F12 -> Storage -> Cookies -> sessionid)")
+        val = input("Paste sessionid: ").strip()
+        if val and set_session_id(val):
+            print("✅  Session saved successfully!\n")
+            session_id = val
+        else:
+            print("❌  No session provided. Exiting.")
+            sys.exit(1)
 
     run_poller(session_id)
 
