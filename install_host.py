@@ -8,7 +8,7 @@ MANIFEST = {
   "description": "Native Host for IG Poller Firefox Extension",
   "path": "",  # Will be filled dynamically
   "type": "stdio",
-  "allowed_extensions": [ "ig-poller@linuxayan.com" ]
+  "allowed_extensions": [ "message-poller-pro@linuxayan.com" ]
 }
 
 def main():
