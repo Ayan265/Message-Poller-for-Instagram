@@ -6,7 +6,13 @@
 
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Message Poller"
+    "default_title": "Message Poller",
+    "default_icon": "message.png"
+  },
+
+  "icons": {
+    "48": "message.png",
+    "96": "message.png"
   },
 
   "permissions": [
