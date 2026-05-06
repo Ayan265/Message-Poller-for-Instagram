@@ -164,7 +164,7 @@ def poll_worker(session, my_id: str,
 
         # Add random jitter to the interval to avoid making requests at exact,
         # predictable times, which can be a flag for bot detection.
-        jitter = random.uniform(-0.2, 0.2) * backoff  # +/- 20% jitter
+        jitter = random.uniform(-0.3, 0.4) * backoff  # -30% to +40% jitter
         stop_event.wait(max(5, backoff + jitter))  # Ensure wait is never too short
 
 

@@ -28,9 +28,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const newSessionInput = document.getElementById('new-session-input');
   const cancelSessionBtn = document.getElementById('cancel-session-btn');
   const saveSessionBtn = document.getElementById('save-session-btn');
+  const powerBtn = document.getElementById('power-btn');
 
   let allMessages = [];
   let lastUpdateTime = null;
+  let isPollerEnabled = true;
+
+  // Initialize power button
+  browser.storage.local.get({ isPollerEnabled: true }).then(res => {
+    isPollerEnabled = res.isPollerEnabled;
+    updatePowerBtn();
+  });
+
+  function updatePowerBtn() {
+    if (isPollerEnabled) {
+      powerBtn.classList.remove('paused');
+      powerBtn.title = "Poller is ON (Click to turn OFF)";
+    } else {
+      powerBtn.classList.add('paused');
+      powerBtn.title = "Poller is OFF (Click to turn ON)";
+    }
+  }
 
   // ── Session Management ──────────────────────────────────────────────────────
 
@@ -84,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateSessionUI(valid, preview) {
     sessionDot.classList.remove('valid', 'invalid');
-    
+
     if (valid) {
       sessionStatus.textContent = 'Active';
       sessionStatus.className = 'session-status valid';
@@ -201,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (diffDays < 7) return `${diffDays}d ago`;
 
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    } catch(e) {
+    } catch (e) {
       return isoString;
     }
   }
@@ -336,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await browser.storage.local.get(["freemiumMessages", "igFetchError"]);
         allMessages = res.freemiumMessages || [];
         setServerStatus(true, "Free Mode");
-        
+
         if (res.igFetchError === "not_logged_in" && allMessages.length === 0) {
           throw new Error("NOT_LOGGED_IN");
         }
@@ -358,15 +376,15 @@ document.addEventListener('DOMContentLoaded', () => {
         browser.runtime.sendMessage({
           action: "clearBadge",
           latestMsgId: allMessages[0].msg_id
-        }).catch(() => {});
+        }).catch(() => { });
       }
     } catch (err) {
       console.error("Data Fetch Error:", err);
       setServerStatus(false);
       window.DEBUG.lastError = err.message;
-      
+
       if (!isPremiumMode && err.message === "NOT_LOGGED_IN") {
-         inboxView.innerHTML = `
+        inboxView.innerHTML = `
           <div class="empty-state">
             <i class="fas fa-cookie-bite"></i>
             <div>Please log into Instagram.com first</div>
@@ -374,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
       } else if (!isPremiumMode && allMessages.length === 0) {
-         inboxView.innerHTML = `
+        inboxView.innerHTML = `
           <div class="empty-state">
             <i class="fas fa-exclamation-triangle"></i>
             <div>Error fetching messages</div>
@@ -393,12 +411,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── Event Listeners ─────────────────────────────────────────────────────────
+  powerBtn.addEventListener('click', () => {
+    isPollerEnabled = !isPollerEnabled;
+    browser.storage.local.set({ isPollerEnabled });
+    updatePowerBtn();
+    if (isPollerEnabled) {
+      refreshBtn.click();
+    }
+  });
 
   refreshBtn.addEventListener('click', () => {
     refreshBtn.classList.add('spinning');
-    const fetchPromise = !isPremiumMode 
-      ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {})
+    const fetchPromise = !isPremiumMode
+      ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => { })
       : Promise.resolve();
 
     fetchPromise.then(() => loadMessages()).finally(() => {
@@ -411,8 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
       e.preventDefault();
       refreshBtn.classList.add('spinning');
-      const fetchPromise = !isPremiumMode 
-        ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {})
+      const fetchPromise = !isPremiumMode
+        ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => { })
         : Promise.resolve();
 
       fetchPromise.then(() => loadMessages()).finally(() => {
@@ -469,5 +494,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Poll every 5 seconds
-  setInterval(loadMessages, 5000);
+  setInterval(() => {
+    if (isPollerEnabled) {
+      loadMessages();
+    }
+  }, 5000);
 });

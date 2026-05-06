@@ -20,8 +20,8 @@ SERVICE_FILE = os.path.join(SERVICE_DIR, "ig-poller.service")
 # ── Polling intervals ─────────────────────────────────────────────────────────
 # To reduce block/ban risk, intervals are longer and have random jitter applied.
 # Making requests too frequently or at exact intervals is a primary flag for bots.
-IDLE_INTERVAL  = 45    # seconds between polls when no new messages
-BURST_INTERVAL = 15    # seconds between polls during an active conversation
+IDLE_INTERVAL  = 20    # seconds between polls when no new messages
+BURST_INTERVAL = 8     # seconds between polls during an active conversation
 BURST_TIMEOUT  = 120   # seconds of silence before reverting to idle
 BACKOFF_MAX    = 300   # max backoff on errors (seconds)
 
@@ -39,4 +39,7 @@ HEADERS = {
     "X-IG-App-ID"      : "936619743392459",
     "X-Requested-With" : "XMLHttpRequest",
     "Referer"          : "https://www.instagram.com/",
+    "Sec-Fetch-Dest"   : "empty",
+    "Sec-Fetch-Mode"   : "cors",
+    "Sec-Fetch-Site"   : "same-origin",
 }

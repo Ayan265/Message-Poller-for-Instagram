@@ -1,4 +1,4 @@
-const POLL_INTERVAL_MINUTES = 0.5; // 30 seconds
+const POLL_INTERVAL_MINUTES = 0.3; // 18 seconds
 const NATIVE_APP = "com.linuxayan.ig_poller";
 
 // Store the latest message ID we have seen
@@ -24,6 +24,9 @@ browser.alarms.onAlarm.addListener((alarm) => {
 });
 
 async function checkForNewMessages() {
+  const settings = await browser.storage.local.get({ isPollerEnabled: true });
+  if (!settings.isPollerEnabled) return;
+
   try {
     // 1. Try Premium Mode (Native Host)
     const data = await browser.runtime.sendNativeMessage(NATIVE_APP, { action: "get_data" });

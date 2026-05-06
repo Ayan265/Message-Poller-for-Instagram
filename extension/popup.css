@@ -776,3 +776,8 @@ h1 {
 .toast-info i {
   color: var(--accent);
 }
+
+#power-btn.paused {
+  color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.1);
+}
