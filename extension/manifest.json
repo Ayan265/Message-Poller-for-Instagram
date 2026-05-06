@@ -11,8 +11,7 @@
   },
 
   "icons": {
-    "48": "message.png",
-    "96": "message.png"
+    "512": "message.png"
   },
 
   "permissions": [
