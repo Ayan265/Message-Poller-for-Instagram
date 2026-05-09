@@ -25,6 +25,16 @@ def send_message(message):
     sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
 
+def is_poller_running():
+    pid_file = os.path.expanduser("~/.ig_poller.pid")
+    try:
+        with open(pid_file, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0) # Sends signal 0 to check if process exists
+        return True
+    except Exception:
+        return False
+
 def main():
     while True:
         try:

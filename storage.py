@@ -44,6 +44,12 @@ def is_seen_dirty() -> bool:
         return _seen_dirty
 
 
+def has_seen_msg(msg_id: str) -> bool:
+    """Return True if this msg_id is already in the seen list."""
+    with _seen_lock:
+        return msg_id in _seen_ids
+
+
 def is_new_msg(msg_id: str) -> bool:
     """Return True if this msg_id is new. Marks it as seen atomically."""
     global _seen_dirty

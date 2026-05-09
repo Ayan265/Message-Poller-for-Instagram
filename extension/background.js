@@ -1,50 +1,105 @@
-const POLL_INTERVAL_MINUTES = 0.3; // 18 seconds
+const POLL_INTERVAL_MINUTES = 0.3; // ~18 seconds
 const NATIVE_APP = "com.linuxayan.ig_poller";
 
-// Store the latest message ID we have seen
+// ── State ────────────────────────────────────────────────────────────────────
 let lastSeenMsgId = null;
+let currentSessionId = "";
 
-// Initialize
-browser.storage.local.get("lastSeenMsgId").then(res => {
-  if (res.lastSeenMsgId) {
-    lastSeenMsgId = res.lastSeenMsgId;
-  }
-  
-  // Set up alarm to poll every 30s
+// ── Load saved state on startup ──────────────────────────────────────────────
+browser.storage.local.get(["lastSeenMsgId", "freeSessionId"]).then(res => {
+  if (res.lastSeenMsgId) lastSeenMsgId = res.lastSeenMsgId;
+  if (res.freeSessionId) currentSessionId = res.freeSessionId;
+  console.log("[MsgPoller] Startup. SessionId loaded:", currentSessionId ? currentSessionId.substring(0,10)+"..." : "(none)");
+
   browser.alarms.create("pollMessages", { periodInMinutes: POLL_INTERVAL_MINUTES });
-  // Also check immediately on startup
   checkForNewMessages();
 });
 
-// Run when alarm fires
-browser.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "pollMessages") {
-    checkForNewMessages();
+// Keep currentSessionId in sync when popup saves a new one
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.freeSessionId) {
+    currentSessionId = changes.freeSessionId.newValue || "";
+    // Immediately poll when a new session is saved
+    if (currentSessionId) checkForNewMessages();
   }
 });
 
+// ── webRequest interceptor ───────────────────────────────────────────────────
+// This is the KEY to standalone Free Mode. Firefox isolates extension background
+// fetch() from page cookies. We intercept the outgoing request and manually
+// inject the sessionid cookie + proper headers so Instagram thinks it's a
+// normal same-origin browser request.
+browser.webRequest.onBeforeSendHeaders.addListener(
+  function(details) {
+    if (details.tabId !== -1 || !currentSessionId) return {};
+
+    // Inject sessionid cookie
+    let cookieValue = "";
+    let cookieIdx = -1;
+    for (let i = 0; i < details.requestHeaders.length; i++) {
+      if (details.requestHeaders[i].name.toLowerCase() === "cookie") {
+        cookieValue = details.requestHeaders[i].value;
+        cookieIdx = i;
+        break;
+      }
+    }
+    if (!cookieValue.includes("sessionid=")) {
+      cookieValue += (cookieValue ? "; " : "") + "sessionid=" + currentSessionId;
+    }
+    if (cookieIdx >= 0) {
+      details.requestHeaders[cookieIdx].value = cookieValue;
+    } else {
+      details.requestHeaders.push({ name: "Cookie", value: cookieValue });
+    }
+
+    // Log all headers for debugging
+    const summary = details.requestHeaders.map(h => h.name + "=" + (h.name.toLowerCase() === "cookie" ? h.value.substring(0, 40) + "..." : h.value)).join(" | ");
+    console.log("[MsgPoller] HEADERS:", summary);
+
+    return { requestHeaders: details.requestHeaders };
+  },
+  { urls: ["*://*.instagram.com/*"] },
+  ["blocking", "requestHeaders"]
+);
+
+// ── Alarm handler ────────────────────────────────────────────────────────────
+browser.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "pollMessages") checkForNewMessages();
+});
+
+// ── Main polling entrypoint ──────────────────────────────────────────────────
 async function checkForNewMessages() {
   const settings = await browser.storage.local.get({ isPollerEnabled: true });
   if (!settings.isPollerEnabled) return;
 
+  // 1. Try Pro Mode (native host + main.py running)
   try {
-    // 1. Try Premium Mode (Native Host)
     const data = await browser.runtime.sendNativeMessage(NATIVE_APP, { action: "get_data" });
     if (data && data.messages) {
+      console.log("[MsgPoller] Pro Mode: got", data.messages.length, "messages from native host");
       await browser.storage.local.set({ isPremiumMode: true });
       processMessagesForBadge(data.messages);
-      return; // Success, we're done.
+      return;
     }
+    console.log("[MsgPoller] Native host responded but no messages:", JSON.stringify(data).substring(0,100));
   } catch (err) {
-    // Native host not found or error. Fall through to Freemium Mode.
-    // console.log("Native host not found. Falling back to JS Poller (Freemium).");
+    console.log("[MsgPoller] Native host not available:", err.message, "→ using Free Mode");
   }
 
-  // 2. Freemium Mode (JS Fetch)
+  // 2. Free Mode (direct API polling with saved sessionid)
   await browser.storage.local.set({ isPremiumMode: false });
+
+  if (!currentSessionId) {
+    console.log("[MsgPoller] Free Mode: no sessionId saved. Waiting for user to paste one.");
+    await browser.storage.local.set({ igFetchError: "no_session" });
+    return;
+  }
+
+  console.log("[MsgPoller] Free Mode: polling with sessionId", currentSessionId.substring(0,10)+"...");
   await pollInstagramDirectly();
 }
 
+// ── Message text extraction ──────────────────────────────────────────────────
 function extractMessageText(item) {
   const itemType = item.item_type || "";
   if (itemType === "text") return (item.text || "").trim();
@@ -59,35 +114,74 @@ function extractMessageText(item) {
   return `📦 [${itemType}]`;
 }
 
+// ── Free Mode: Direct Instagram API polling ──────────────────────────────────
+// Works exactly like main.py — sends sessionid cookie with API requests.
+// The webRequest interceptor above handles injecting the cookie.
 async function pollInstagramDirectly() {
   try {
-    // Get current user ID to know direction
-    const userRes = await fetch("https://www.instagram.com/api/v1/accounts/current_user/?edit=true", {
-      credentials: "include",
-      headers: { "X-IG-App-ID": "936619743392459", "X-Requested-With": "XMLHttpRequest" }
-    });
-    if (!userRes.ok) throw new Error("Not logged in");
+    const headers = {
+      "X-IG-App-ID": "936619743392459",
+      "X-Requested-With": "XMLHttpRequest",
+      "Accept": "*/*",
+      "Accept-Language": "en-US,en;q=0.9"
+    };
+
+    // Step 1: Get current user ID
+    console.log("[MsgPoller] Free Mode: fetching current_user...");
+    const userRes = await fetch(
+      "https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
+      { headers }
+    );
+    console.log("[MsgPoller] Free Mode: current_user response:", userRes.status, userRes.statusText);
+
+    if (userRes.status === 401 || userRes.status === 403) {
+      console.log("[MsgPoller] Free Mode: session expired (401/403)");
+      await browser.storage.local.set({ igFetchError: "session_expired" });
+      return;
+    }
+    if (!userRes.ok) {
+      const errBody = await userRes.text();
+      console.log("[MsgPoller] Free Mode: error response body:", errBody.substring(0, 500));
+      throw new Error("API error: " + userRes.status);
+    }
+
     const userData = await userRes.json();
     const myId = String(userData?.user?.pk || "");
+    console.log("[MsgPoller] Free Mode: logged in as uid:", myId);
 
-    const inboxRes = await fetch("https://www.instagram.com/api/v1/direct_v2/inbox/?visual_message_return_type=unseen&persistentBadging=true&limit=20", {
-      credentials: "include",
-      headers: { "X-IG-App-ID": "936619743392459", "X-Requested-With": "XMLHttpRequest" }
-    });
-    
-    if (!inboxRes.ok) return; // rate limit or auth error
+    if (!myId) {
+      // Fallback: extract user ID from sessionid (format: "UID:hash:count")
+      const parts = currentSessionId.split(/[:]/);
+      if (parts[0] && /^\d+$/.test(parts[0])) {
+        // Use parsed ID
+      } else {
+        throw new Error("Could not determine user ID");
+      }
+    }
+
+    // Step 2: Fetch inbox
+    const inboxRes = await fetch(
+      "https://www.instagram.com/api/v1/direct_v2/inbox/?visual_message_return_type=unseen&persistentBadging=true&limit=20",
+      { headers }
+    );
+
+    if (inboxRes.status === 401 || inboxRes.status === 403) {
+      await browser.storage.local.set({ igFetchError: "session_expired" });
+      return;
+    }
+    if (!inboxRes.ok) return; // rate limit or transient error
+
     const inboxData = await inboxRes.json();
     const threads = inboxData?.inbox?.threads || [];
 
-    // Also get existing saved messages from storage to deduplicate
+    // Step 3: Process threads into messages
     const store = await browser.storage.local.get("freemiumMessages");
     let savedMessages = store.freemiumMessages || [];
     const seenIds = new Set(savedMessages.map(m => m.msg_id));
 
     let countNew = 0;
-    const now = new Date().toISOString().split('.')[0]; // YYYY-MM-DDTHH:MM:SS
+    const now = new Date().toISOString().split('.')[0];
 
-    // Process threads from oldest to newest so newest end up at the top
     for (const thread of [...threads].reverse()) {
       const threadId = thread.thread_id;
       const isGroup = thread.is_group;
@@ -95,12 +189,13 @@ async function pollInstagramDirectly() {
       const users = thread.users || [];
       const userMap = {};
       users.forEach(u => userMap[String(u.pk)] = u.username);
-      
-      const otherUsers = users.filter(u => String(u.pk) !== myId).map(u => u.username);
+
+      const otherUsers = users
+        .filter(u => String(u.pk) !== myId)
+        .map(u => u.username);
       const defaultPartner = otherUsers.length > 0 ? otherUsers[0] : "unknown";
 
       const items = thread.items || [];
-      // Instagram returns items newest first. Reverse to append chronologically.
       const reversedItems = [...items].reverse();
 
       for (const item of reversedItems) {
@@ -110,7 +205,7 @@ async function pollInstagramDirectly() {
         const msgId = String(item.item_id);
 
         if (!text || !msgId || seenIds.has(msgId)) continue;
-        
+
         seenIds.add(msgId);
 
         let partnerName = defaultPartner;
@@ -127,7 +222,7 @@ async function pollInstagramDirectly() {
           msgTime = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
         }
 
-        const entry = {
+        savedMessages.unshift({
           saved_at: msgTime,
           app: "Instagram",
           direction: isMine ? "sent" : "received",
@@ -135,15 +230,12 @@ async function pollInstagramDirectly() {
           message: text,
           thread_id: threadId,
           msg_id: msgId
-        };
-        
-        savedMessages.unshift(entry);
+        });
         countNew++;
       }
     }
 
     if (countNew > 0) {
-      // Cap at 300 to prevent quota limits
       if (savedMessages.length > 300) savedMessages = savedMessages.slice(0, 300);
       await browser.storage.local.set({ freemiumMessages: savedMessages, igFetchError: null });
     } else {
@@ -154,10 +246,11 @@ async function pollInstagramDirectly() {
 
   } catch (err) {
     console.error("IG fetch failed:", err);
-    browser.storage.local.set({ igFetchError: err.message === "Not logged in" ? "not_logged_in" : err.message });
+    await browser.storage.local.set({ igFetchError: err.message });
   }
 }
 
+// ── Badge management ─────────────────────────────────────────────────────────
 function processMessagesForBadge(messages) {
   if (!messages || messages.length === 0) return;
 
@@ -172,11 +265,11 @@ function processMessagesForBadge(messages) {
 
   if (unreadCount > 0) {
     browser.action.setBadgeText({ text: unreadCount > 9 ? "9+" : unreadCount.toString() });
-    browser.action.setBadgeBackgroundColor({ color: "#ef4444" }); // Red badge
+    browser.action.setBadgeBackgroundColor({ color: "#ef4444" });
   }
 }
 
-// Listen for messages from the popup
+// ── Message listener (from popup) ────────────────────────────────────────────
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "clearBadge") {
     browser.action.setBadgeText({ text: "" });
@@ -185,7 +278,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       browser.storage.local.set({ lastSeenMsgId: request.latestMsgId });
     }
   } else if (request.action === "forceFetch") {
-    checkForNewMessages().then(() => sendResponse({status: "ok"}));
+    checkForNewMessages().then(() => sendResponse({ status: "ok" }));
     return true;
   }
 });

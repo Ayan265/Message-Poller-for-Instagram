@@ -17,7 +17,9 @@
   "permissions": [
     "nativeMessaging",
     "alarms",
-    "storage"
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
   ],
   "host_permissions": [
     "*://*.instagram.com/*"

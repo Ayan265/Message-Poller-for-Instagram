@@ -26,8 +26,8 @@ BURST_TIMEOUT  = 120   # seconds of silence before reverting to idle
 BACKOFF_MAX    = 300   # max backoff on errors (seconds)
 
 # ── Storage limits ────────────────────────────────────────────────────────────
-SAVE_MAX_MSGS  = 500   # max messages kept in the JSON save file
-SEEN_MAX       = 3000  # max in-memory seen IDs (trimmed to half when hit)
+SAVE_MAX_MSGS  = 5000  # max messages kept in the JSON save file
+SEEN_MAX       = 10000 # max in-memory seen IDs (trimmed to half when hit)
 
 # ── HTTP headers — mimics Firefox (web endpoints) ─────────────────────────────
 # NOTE: These are static and may become outdated. If you experience blocks,

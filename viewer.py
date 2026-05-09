@@ -69,7 +69,7 @@ def cmd_view(n: int = 50) -> None:
     print()
 
 
-def cmd_chat(username: str, n: int = 200) -> None:
+def cmd_chat(username: str, n: int = 1000) -> None:
     """Print conversation with a specific user, clearly labelled."""
     msgs   = _load()
     thread = [m for m in msgs

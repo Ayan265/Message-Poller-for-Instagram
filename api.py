@@ -116,7 +116,7 @@ def fetch_thread_items(session, thread_id: str) -> list:
     """Fallback: fetch items for a specific thread (used only if needed)."""
     try:
         r = session.get(
-            f"https://www.instagram.com/api/v1/direct_v2/threads/{thread_id}/?limit=10",
+            f"https://www.instagram.com/api/v1/direct_v2/threads/{thread_id}/?limit=100",
             timeout=10)
         if r.status_code == 200:
             return r.json().get("thread", {}).get("items", [])

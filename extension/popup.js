@@ -74,29 +74,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return false;
       }
     } catch (err) {
-      // Freemium Mode
+      // Free Mode — no native host available
       isPremiumMode = false;
-      updateSessionUI(true, "Browser auto-auth");
-      window.DEBUG.sessionStatus = 'valid';
-      showFreemiumBanner();
-      return true;
-    }
-  }
 
-  function showFreemiumBanner() {
-    let banner = document.getElementById('freemium-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'freemium-banner';
-      banner.innerHTML = `
-        <div style="background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045); padding: 10px; color: white; text-align: center; font-size: 12px; font-weight: 600; border-radius: 8px; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(225, 48, 108, 0.3);">
-          <i class="fas fa-rocket"></i> Get 24/7 background polling & notifications (Free Pro setup)
-        </div>
-      `;
-      banner.addEventListener('click', () => {
-        browser.tabs.create({ url: "https://github.com/linuxayan/ig_poller" });
-      });
-      document.querySelector('.header').after(banner);
+      // Check if user has saved a session ID
+      const res = await browser.storage.local.get("freeSessionId");
+      const savedSession = res.freeSessionId || "";
+
+      if (savedSession) {
+        const preview = savedSession.substring(0, 10) + "...";
+        updateSessionUI(true, preview);
+        window.DEBUG.sessionStatus = 'valid';
+        return true;
+      } else {
+        updateSessionUI(false, "");
+        window.DEBUG.sessionStatus = 'no_session';
+        setTimeout(showSessionModal, 600);
+        return false;
+      }
     }
   }
 
@@ -107,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStatus.textContent = 'Active';
       sessionStatus.className = 'session-status valid';
       sessionDot.classList.add('valid');
-      sessionPreview.textContent = preview ? `(${preview})` : '';
+      sessionPreview.textContent = preview ? '(' + preview + ')' : '';
       sessionPreview.title = 'Session valid';
     } else {
       sessionStatus.textContent = 'Expired';
@@ -140,21 +135,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     saveSessionBtn.disabled = true;
-    saveSessionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    saveSessionBtn.textContent = 'Saving...';
 
     try {
-      const data = await browser.runtime.sendNativeMessage(
-        "com.linuxayan.ig_poller",
-        { action: "set_session", session_id: newSession }
-      );
-      hideSessionModal();
+      if (isPremiumMode) {
+        // Pro Mode: send to native host
+        const data = await browser.runtime.sendNativeMessage(
+          "com.linuxayan.ig_poller",
+          { action: "set_session", session_id: newSession }
+        );
+        hideSessionModal();
 
-      if (data.status === "ok") {
-        await checkSessionStatus();
-        loadMessages();
-        showToast('Session saved! Restart poller to apply.', 'success');
+        if (data.status === "ok") {
+          await checkSessionStatus();
+          loadMessages();
+          showToast('Session saved! Restart poller to apply.', 'success');
+        } else {
+          showToast('Failed: ' + (data.message || 'Unknown error'), 'error');
+        }
       } else {
-        showToast('Failed: ' + (data.message || 'Unknown error'), 'error');
+        // Free Mode: save sessionid to extension storage
+        // The background script's webRequest interceptor will pick it up
+        // and inject it into all Instagram API requests automatically
+        await browser.storage.local.set({ freeSessionId: newSession });
+        hideSessionModal();
+        await checkSessionStatus();
+        showToast('Session saved! Fetching messages...', 'success');
+
+        // Force an immediate background fetch
+        browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {});
+        setTimeout(() => loadMessages(), 1500);
       }
     } catch (err) {
       hideSessionModal();
@@ -167,14 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Toast Notifications ─────────────────────────────────────────────────────
 
-  function showToast(message, type = 'info') {
+  function showToast(message, type) {
+    type = type || 'info';
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
+    toast.className = 'toast toast-' + type;
     const icon = document.createElement('i');
-    icon.className = `fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}`;
+    if (type === 'success') icon.className = 'fas fa-check-circle';
+    else if (type === 'error') icon.className = 'fas fa-exclamation-circle';
+    else icon.className = 'fas fa-info-circle';
+
     const span = document.createElement('span');
     span.textContent = message;
     toast.appendChild(icon);
@@ -191,12 +205,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Server / Message Handling ───────────────────────────────────────────────
 
-  let refreshTimeout = null;
-
-  function setServerStatus(connected, type = 'Native Host') {
+  function setServerStatus(connected, type) {
+    type = type || 'Native Host';
     if (connected) {
       serverDot.classList.add('online');
-      serverText.textContent = `Connected (${type})`;
+      serverText.textContent = 'Connected (' + type + ')';
     } else {
       serverDot.classList.remove('online');
       serverText.textContent = 'Disconnected';
@@ -212,13 +225,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const diffMins = Math.floor(diffMs / 60000);
 
       if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffMins < 60) return diffMins + 'm ago';
 
       const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffHours < 24) return diffHours + 'h ago';
 
       const diffDays = Math.floor(diffHours / 24);
-      if (diffDays < 7) return `${diffDays}d ago`;
+      if (diffDays < 7) return diffDays + 'd ago';
 
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     } catch (e) {
@@ -247,7 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return colors[Math.abs(hash) % colors.length];
   }
 
-  function openChat(sender, isAutoRefresh = false) {
+  function openChat(sender, isAutoRefresh) {
+    isAutoRefresh = isAutoRefresh || false;
     inboxView.style.display = 'none';
     chatView.style.display = 'flex';
     chatContactName.textContent = sender;
@@ -267,9 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
     threadMsgs.forEach((msg, idx) => {
       const isSent = msg.direction === 'sent';
       const bubble = document.createElement('div');
-      bubble.className = `chat-bubble ${isSent ? 'sent' : 'received'}`;
+      bubble.className = 'chat-bubble ' + (isSent ? 'sent' : 'received');
       bubble.dataset.msgId = msg.msg_id;
-      bubble.style.animationDelay = `${idx * 30}ms`;
+      bubble.style.animationDelay = (idx * 30) + 'ms';
       const textDiv = document.createElement('div');
       textDiv.className = 'msg-text';
       textDiv.textContent = msg.message;
@@ -288,21 +302,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   function renderInbox(messages) {
     if (!messages || messages.length === 0) {
-      inboxView.innerHTML = `
-        <div class="empty-state">
-          <i class="far fa-comments"></i>
-          <div>No recent messages</div>
-          <div style="font-size:11px;margin-top:4px;opacity:0.6">Start chatting on Instagram to see messages here</div>
-        </div>
-      `;
+      inboxView.innerHTML = '';
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'empty-state';
+      const emptyIcon = document.createElement('i');
+      emptyIcon.className = 'far fa-comments';
+      const emptyText = document.createElement('div');
+      emptyText.textContent = 'No recent messages';
+      const emptyHint = document.createElement('div');
+      emptyHint.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+      emptyHint.textContent = 'Start chatting on Instagram to see messages here';
+      emptyDiv.appendChild(emptyIcon);
+      emptyDiv.appendChild(emptyText);
+      emptyDiv.appendChild(emptyHint);
+      inboxView.appendChild(emptyDiv);
       return;
     }
 
@@ -362,7 +377,10 @@ document.addEventListener('DOMContentLoaded', () => {
         previewDiv.appendChild(sentIcon);
       }
 
-      const msgText = document.createTextNode(latestMsg.message.length > 70 ? latestMsg.message.substring(0, 70) + '...' : latestMsg.message);
+      const previewText = latestMsg.message.length > 70
+        ? latestMsg.message.substring(0, 70) + '...'
+        : latestMsg.message;
+      const msgText = document.createTextNode(previewText);
       previewDiv.appendChild(msgText);
 
       detailsDiv.appendChild(headerDiv);
@@ -393,11 +411,17 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         const res = await browser.storage.local.get(["freemiumMessages", "igFetchError"]);
         allMessages = res.freemiumMessages || [];
-        setServerStatus(true, "Free Mode");
 
-        if (res.igFetchError === "not_logged_in" && allMessages.length === 0) {
-          throw new Error("NOT_LOGGED_IN");
+        if (res.igFetchError === "no_session" && allMessages.length === 0) {
+          throw new Error("NO_SESSION");
         }
+        if (res.igFetchError === "session_expired" && allMessages.length === 0) {
+          throw new Error("SESSION_EXPIRED");
+        }
+        if (res.igFetchError && allMessages.length === 0) {
+          throw new Error(res.igFetchError);
+        }
+        setServerStatus(true, "Free Mode");
       }
       lastUpdateTime = Date.now();
       window.DEBUG.lastFetchTime = new Date().toISOString();
@@ -416,49 +440,64 @@ document.addEventListener('DOMContentLoaded', () => {
         browser.runtime.sendMessage({
           action: "clearBadge",
           latestMsgId: allMessages[0].msg_id
-        }).catch(() => { });
+        }).catch(() => {});
       }
     } catch (err) {
       console.error("Data Fetch Error:", err);
       setServerStatus(false);
       window.DEBUG.lastError = err.message;
 
-      if (!isPremiumMode && err.message === "NOT_LOGGED_IN") {
-        inboxView.innerHTML = `
-          <div class="empty-state">
-            <i class="fas fa-cookie-bite"></i>
-            <div>Please log into Instagram.com first</div>
-            <div style="font-size:11px;margin-top:4px;opacity:0.6">The Free mode relies on your browser session</div>
-          </div>
-        `;
-      } else if (!isPremiumMode && allMessages.length === 0) {
-        inboxView.innerHTML = '';
-        const emptyState = document.createElement('div');
-        emptyState.className = 'empty-state';
+      inboxView.innerHTML = '';
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-state';
 
+      if (!isPremiumMode && err.message === "NO_SESSION") {
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-key';
+        const title = document.createElement('div');
+        title.textContent = 'Session ID required';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+        hint.textContent = 'Click "Renew" above to paste your Instagram sessionid';
+        emptyState.appendChild(icon);
+        emptyState.appendChild(title);
+        emptyState.appendChild(hint);
+      } else if (!isPremiumMode && err.message === "SESSION_EXPIRED") {
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-clock';
+        const title = document.createElement('div');
+        title.textContent = 'Session expired';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+        hint.textContent = 'Your session has expired. Click "Renew" to paste a fresh sessionid';
+        emptyState.appendChild(icon);
+        emptyState.appendChild(title);
+        emptyState.appendChild(hint);
+      } else if (isPremiumMode) {
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-plug';
+        const title = document.createElement('div');
+        title.textContent = 'Could not connect to native host';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+        hint.innerHTML = 'Make sure you ran:<br><code>python3 main.py --install-ext</code>';
+        emptyState.appendChild(icon);
+        emptyState.appendChild(title);
+        emptyState.appendChild(hint);
+      } else {
         const icon = document.createElement('i');
         icon.className = 'fas fa-exclamation-triangle';
-
-        const titleDiv = document.createElement('div');
-        titleDiv.textContent = 'Error fetching messages';
-
-        const msgDiv = document.createElement('div');
-        msgDiv.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
-        msgDiv.textContent = err.message;
-
+        const title = document.createElement('div');
+        title.textContent = 'Error fetching messages';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:11px;margin-top:4px;opacity:0.6';
+        hint.textContent = err.message;
         emptyState.appendChild(icon);
-        emptyState.appendChild(titleDiv);
-        emptyState.appendChild(msgDiv);
-        inboxView.appendChild(emptyState);
-      } else if (isPremiumMode) {
-        inboxView.innerHTML = `
-          <div class="empty-state">
-            <i class="fas fa-plug"></i>
-            <div>Could not connect to native host</div>
-            <div style="font-size:11px;margin-top:4px;opacity:0.6">Make sure you ran:<br><code>python3 main.py --install-ext</code></div>
-          </div>
-        `;
+        emptyState.appendChild(title);
+        emptyState.appendChild(hint);
       }
+
+      inboxView.appendChild(emptyState);
     }
   }
 
@@ -473,27 +512,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refreshBtn.addEventListener('click', () => {
     refreshBtn.classList.add('spinning');
-    const fetchPromise = !isPremiumMode
-      ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => { })
-      : Promise.resolve();
-
-    fetchPromise.then(() => loadMessages()).finally(() => {
-      setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
-    });
+    browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => {});
+    setTimeout(() => {
+      loadMessages().finally(() => {
+        setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
+      });
+    }, 800);
   });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
       e.preventDefault();
-      refreshBtn.classList.add('spinning');
-      const fetchPromise = !isPremiumMode
-        ? browser.runtime.sendMessage({ action: "forceFetch" }).catch(() => { })
-        : Promise.resolve();
-
-      fetchPromise.then(() => loadMessages()).finally(() => {
-        setTimeout(() => refreshBtn.classList.remove('spinning'), 500);
-      });
+      refreshBtn.click();
     }
     if (e.key === 'Escape') {
       hideSessionModal();
@@ -544,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMessages();
   });
 
-  // Poll every 5 seconds
+  // Poll every 5 seconds for updated messages from storage
   setInterval(() => {
     if (isPollerEnabled) {
       loadMessages();

@@ -2,13 +2,13 @@
 poller.py — Background polling thread and main display loop.
 """
 
-import sys, time, queue, threading, random
+import os, sys, time, queue, threading, random
 from datetime import datetime
 
 from config  import IDLE_INTERVAL, BURST_INTERVAL, BURST_TIMEOUT, BACKOFF_MAX
 from api     import (make_session, get_my_id,
                      fetch_inbox, fetch_pending, fetch_thread_items)
-from storage import save_msg, load_seen_ids, flush_seen_ids, is_seen_dirty
+from storage import save_msg, load_seen_ids, flush_seen_ids, is_seen_dirty, has_seen_msg
 from notify  import notify
 from utils import C_CYAN, C_GREEN, C_YELLOW, C_RED, C_RESET
 
@@ -55,8 +55,19 @@ def process_threads(threads: list, session, my_id: str,
         
         items       = thread.get("items") or []
 
-        # Only make the extra per-thread request if inbox gave us nothing
-        if not items and thread.get("has_newer", False):
+        # Instagram's inbox returns a small preview of items (usually newest 1 or 2).
+        # If the *oldest* message in this preview is STILL NEW to us, it means there
+        # might be even older messages in this thread that we missed while the poller
+        # was offline. We should fetch the full thread to backfill them.
+        if items:
+            oldest_preview_msg_id = str(items[-1].get("item_id", ""))
+            if oldest_preview_msg_id and not has_seen_msg(oldest_preview_msg_id):
+                more_items = fetch_thread_items(session, thread_id)
+                if more_items:
+                    items = more_items
+
+        # Fallback if inbox gave us absolutely no items but says there are newer ones
+        elif thread.get("has_newer", False):
             items = fetch_thread_items(session, thread_id) or []
 
         # Instagram returns messages newest-first. Reverse to process chronologically.
@@ -208,6 +219,13 @@ def run(session_id: str) -> None:
     )
     worker.start()
 
+    pid_file = os.path.expanduser("~/.ig_poller.pid")
+    try:
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+    except Exception:
+        pass
+
     try:
         while True:
             printed_msg = False
@@ -243,3 +261,8 @@ def run(session_id: str) -> None:
         if is_seen_dirty():
             flush_seen_ids()
         print("\n\n  Stopped.\n")
+    finally:
+        try:
+            os.remove(pid_file)
+        except OSError:
+            pass
