@@ -8,12 +8,9 @@ Usage:
   python3 main.py --chat <username>    Show conversation with one person
   python3 main.py --contacts           List all contacts with message counts
   python3 main.py --clean              Deduplicate the saved messages file
-
-
-  python3 main.py --autostart          Install systemd autostart service
-  python3 main.py --stop               Remove systemd autostart service
-  
-  python3 main.py --install-ext        Install the Firefox Extension Native Host
+  python3 main.py --set-session <ID>   Update your session cookie
+  python3 main.py --autostart          Install systemd autostart service (Linux)
+  python3 main.py --stop               Remove systemd autostart service (Linux)
 """
 
 import sys, os
@@ -54,8 +51,7 @@ Examples:
                         help="Install systemd autostart service")
     parser.add_argument("--stop", action="store_true",
                         help="Remove systemd autostart service")
-    parser.add_argument("--install-ext", action="store_true",
-                        help="Install Firefox Extension native host")
+
     parser.add_argument("--set-session", nargs="?", const="PROMPT", type=str, metavar="SESSION_ID",
                         help="Update Instagram session ID interactively or via argument")
     
@@ -87,10 +83,7 @@ Examples:
         cmd_stop()
         return
 
-    if args.install_ext:
-        import install_host
-        install_host.main()
-        return
+
 
     if args.set_session:
         val = args.set_session
