@@ -115,7 +115,7 @@ def process_threads(threads: list, session, my_id: str,
                     "is_mine" : is_mine,
                     "sender"  : partner_name,
                     "text"    : text,
-                    "ts"      : msg_time.split("T")[1] if msg_time else datetime.now().strftime("%H:%M:%S"),
+                    "ts"      : msg_time.replace("T", " ") if msg_time else datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 })
                 count += 1
     return count
@@ -269,10 +269,11 @@ def run(session_id: str) -> None:
 
 
 
+                pad = 15
                 if msg["is_mine"]:
-                    print(f"📤  [{msg['ts']}]  {C_GREEN}YOU{C_RESET} → {C_CYAN}{msg['sender']}{C_RESET}: {msg['text']}")
+                    print(f"  {msg['ts']:<19}  📤  {C_GREEN}{'YOU':<{pad}}{C_RESET}  {msg['text']}")
                 else:
-                    print(f"📨  [{msg['ts']}]  {C_CYAN}{msg['sender']}{C_RESET} → {C_GREEN}YOU{C_RESET}: {C_YELLOW}{msg['text']}{C_RESET}")
+                    print(f"  {msg['ts']:<19}  📨  {C_CYAN}{msg['sender']:<{pad}}{C_RESET}  {C_YELLOW}{msg['text']}{C_RESET}")
                     notify(msg["sender"], msg["text"])
 
                 printed_msg = True

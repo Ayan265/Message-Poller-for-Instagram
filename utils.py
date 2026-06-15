@@ -5,10 +5,12 @@ utils.py — Shared utilities and UI constants.
 import os, sys
 
 # ── Terminal Colors (ANSI) ────────────────────────────────────────────────────
-# Enable ANSI escape codes on Windows 10+ (CMD and PowerShell)
+# Enable ANSI escape codes and UTF-8 encoding on Windows 10+
 if sys.platform == 'win32':
     try:
         os.system('')  # triggers VT100 mode on Windows 10+
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
 

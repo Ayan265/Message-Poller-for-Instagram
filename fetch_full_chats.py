@@ -5,6 +5,16 @@ import os
 import sys
 import random
 import datetime
+
+# Enable UTF-8 console output for Windows to display emojis correctly
+if sys.platform == 'win32':
+    import os
+    try:
+        os.system('')  # triggers VT100 mode on Windows 10+
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 from urllib.parse import quote
 from api import get_session_id, make_session
 
