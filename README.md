@@ -16,8 +16,9 @@ Everything runs locally on your machine. No servers, no cloud, no tracking.
 | 🔇 **Muted Chat Bypass** | Captures messages from muted contacts too |
 | 🛡️ **Anti-Ban Protection** | Randomized jitter, header spoofing, and adaptive polling to mimic real browsing |
 | 📜 **Full Chat Export** | Download your entire chat history with any contact |
-| 🔔 **Desktop Notifications** | Get notified of new messages in real time (works on Windows, macOS, and Linux) |
-| 💾 **100% Local** | Zero data sent anywhere. Everything stays on your machine |
+| 🔔 **Desktop Notifications** | Real-time toast notifications on Windows, macOS, and Linux |
+| 🔄 **Auto-Start on Boot** | Set it and forget it — starts automatically when you log in (all platforms) |
+| 💾 **100% Local & Private** | Zero data sent anywhere. Everything stays on your machine |
 
 ---
 
@@ -30,31 +31,59 @@ git clone https://github.com/Ayan265/Message-Poller-for-Instagram.git
 cd Message-Poller-for-Instagram
 ```
 
-### 2. Install Dependencies
+### 2. Install Python & Dependencies
 
-You only need Python 3.8+ and the `requests` library.
+You need **Python 3.8+** installed. Then install the one dependency:
 
-**Linux / macOS:**
+<details>
+<summary><b>🐧 Linux</b></summary>
+
 ```bash
-pip3 install requests
+pip3 install -r requirements.txt
 ```
+> On newer Ubuntu/Debian, you may need: `pip3 install -r requirements.txt --break-system-packages`
 
-**Windows:**
+For desktop notifications, also install:
 ```bash
-pip install requests
+sudo apt install libnotify-bin    # Ubuntu/Debian
 ```
+</details>
 
-> **Note:** On newer Linux distros, you may need `pip3 install requests --break-system-packages`
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+```bash
+pip3 install -r requirements.txt
+```
+> If `pip3` isn't found, install Python from [python.org](https://www.python.org/downloads/) or via `brew install python`
+
+Notifications work out of the box on macOS.
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+```bash
+pip install -r requirements.txt
+```
+> If `pip` isn't found, install Python from [python.org](https://www.python.org/downloads/) — make sure to check **"Add Python to PATH"** during installation.
+
+Toast notifications work out of the box on Windows 10/11.
+
+**Note:** On Windows, use `python` instead of `python3` for all commands below.
+</details>
 
 ### 3. Get Your Instagram Session ID
 
-You need your `sessionid` cookie from Instagram. Here's how to find it:
+You need your `sessionid` cookie from Instagram. Here's how:
 
-1. Open [instagram.com](https://www.instagram.com) in your browser and log in
-2. Press `F12` to open Developer Tools
-3. Go to **Application** (Chrome/Edge) or **Storage** (Firefox)
-4. Click **Cookies** → `https://www.instagram.com`
-5. Find the cookie named `sessionid` and copy its **Value**
+1. Open [instagram.com](https://www.instagram.com) in your browser and **log in**
+2. Press **F12** to open Developer Tools
+3. Go to:
+   - **Chrome/Edge:** Application → Cookies → `https://www.instagram.com`
+   - **Firefox:** Storage → Cookies → `https://www.instagram.com`
+4. Find the cookie named **`sessionid`**
+5. Copy its **Value** (it looks like a long string of numbers and letters)
 
 ### 4. Start the Poller
 
@@ -62,16 +91,18 @@ You need your `sessionid` cookie from Instagram. Here's how to find it:
 python3 main.py
 ```
 
-It will ask for your `sessionid` on first run. Paste it and press Enter. That's it — messages will be fetched and saved locally in real time.
+On first run, it will ask you to paste your `sessionid`. After that, it runs automatically.
 
-You can also set it directly:
+You can also set the session directly:
 ```bash
 python3 main.py --set-session YOUR_SESSION_ID
 ```
 
+> ⚠️ **Session IDs expire periodically.** If you see a `SESSION_EXPIRED` error, just get a fresh one from your browser and update it.
+
 ---
 
-## 💻 Commands
+## 💻 All Commands
 
 | Command | What It Does |
 |---|---|
@@ -79,11 +110,11 @@ python3 main.py --set-session YOUR_SESSION_ID
 | `python3 main.py --view` | Show last 50 messages |
 | `python3 main.py --view 200` | Show last 200 messages |
 | `python3 main.py --chat username` | Show full conversation with a specific user |
-| `python3 main.py --contacts` | List all tracked contacts |
+| `python3 main.py --contacts` | List all tracked contacts and message counts |
 | `python3 main.py --clean` | Remove duplicate messages from storage |
 | `python3 main.py --set-session ID` | Update your Instagram session cookie |
-| `python3 main.py --autostart` | Auto-start on boot *(Linux only)* |
-| `python3 main.py --stop` | Remove auto-start service *(Linux only)* |
+| `python3 main.py --autostart` | Auto-start poller on login *(all platforms)* |
+| `python3 main.py --stop` | Remove auto-start |
 
 ### Export Full Chat History
 
@@ -101,20 +132,42 @@ Anti-ban delays are built in automatically.
 
 ---
 
+## 🔄 Auto-Start (Run on Boot)
+
+Want the poller to start automatically every time you turn on your computer?
+
+```bash
+python3 main.py --autostart
+```
+
+To remove auto-start:
+```bash
+python3 main.py --stop
+```
+
+| OS | How It Works |
+|---|---|
+| 🐧 Linux | Creates a `systemd` user service |
+| 🍎 macOS | Creates a `launchd` LaunchAgent |
+| 🪟 Windows | Creates a Task Scheduler entry |
+
+---
+
 ## 📁 Project Structure
 
 ```
-├── main.py             # CLI entry point — start here
-├── poller.py           # Core polling engine (background thread)
-├── api.py              # Instagram API communication
-├── storage.py          # Local message storage (JSON, atomic writes)
-├── viewer.py           # CLI message viewer (--view, --chat, --contacts)
-├── notify.py           # Desktop notifications (Windows/macOS/Linux)
-├── service.py          # Systemd auto-start service (Linux)
-├── config.py           # All tunable settings in one place
-├── utils.py            # Terminal color helpers
-├── fetch_full_chats.py # Full chat history exporter
-└── PRIVACY.md          # Privacy policy
+├── main.py              # Start here — CLI entry point
+├── poller.py            # Core polling engine (background thread)
+├── api.py               # Instagram API communication
+├── storage.py           # Local JSON message storage (atomic writes)
+├── viewer.py            # CLI message viewer (--view, --chat, --contacts)
+├── notify.py            # Desktop notifications (all platforms)
+├── service.py           # Auto-start service (all platforms)
+├── config.py            # All tunable settings
+├── utils.py             # Terminal color helpers
+├── fetch_full_chats.py  # Full chat history exporter
+├── requirements.txt     # Python dependencies
+└── PRIVACY.md           # Privacy policy
 ```
 
 ---
@@ -133,6 +186,19 @@ All settings live in [`config.py`](config.py). Adjust to your needs:
 
 ---
 
+## 🖥️ Platform Support
+
+| Feature | 🐧 Linux | 🍎 macOS | 🪟 Windows |
+|---|---|---|---|
+| Core Poller | ✅ | ✅ | ✅ |
+| Desktop Notifications | ✅ `notify-send` | ✅ `osascript` | ✅ Toast |
+| Notification Sound | ✅ | ✅ | ✅ |
+| Auto-Start on Boot | ✅ `systemd` | ✅ `launchd` | ✅ Task Scheduler |
+| Chat Export | ✅ | ✅ | ✅ |
+| Colored Terminal | ✅ | ✅ | ✅ Win10+ |
+
+---
+
 ## 🔧 Troubleshooting
 
 | Problem | Fix |
@@ -141,19 +207,10 @@ All settings live in [`config.py`](config.py). Adjust to your needs:
 | `SESSION_EXPIRED` error | Get a fresh `sessionid` from your browser and update it |
 | `RATE_LIMITED` warning | The poller backs off automatically — just wait |
 | `pip3 install` fails on Linux | Add `--break-system-packages` flag |
-| No notifications on Linux | Install `libnotify` (`sudo apt install libnotify-bin`) |
-| Messages not saving | Check that `~/ig_saved_messages.json` exists and is writable |
-
----
-
-## 🖥️ Platform Support
-
-| Feature | Linux | macOS | Windows |
-|---|---|---|---|
-| Core Poller | ✅ | ✅ | ✅ |
-| Desktop Notifications | ✅ `notify-send` | ✅ `osascript` | ✅ Sound only |
-| Auto-start on Boot | ✅ `systemd` | ❌ | ❌ |
-| Chat Export | ✅ | ✅ | ✅ |
+| No notifications on Linux | Install `libnotify-bin` (`sudo apt install libnotify-bin`) |
+| `python3` not found on Windows | Use `python` instead of `python3` |
+| `pip` not found on Windows | Reinstall Python with **"Add to PATH"** checked |
+| Auto-start not working on Windows | Try running the command as Administrator |
 
 ---
 

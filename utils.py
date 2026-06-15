@@ -2,7 +2,16 @@
 utils.py — Shared utilities and UI constants.
 """
 
+import os, sys
+
 # ── Terminal Colors (ANSI) ────────────────────────────────────────────────────
+# Enable ANSI escape codes on Windows 10+ (CMD and PowerShell)
+if sys.platform == 'win32':
+    try:
+        os.system('')  # triggers VT100 mode on Windows 10+
+    except Exception:
+        pass
+
 C_CYAN   = "\033[96m"
 C_GREEN  = "\033[92m"
 C_YELLOW = "\033[93m"

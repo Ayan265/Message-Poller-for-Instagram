@@ -20,3 +20,4 @@ readable_chat_*.txt
 
 # Build artifacts
 *.zip
+format_chats.py

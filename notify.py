@@ -1,20 +1,26 @@
 """
-notify.py — Desktop notification helper.
+notify.py — Cross-platform desktop notification helper.
+
+Supports:
+  - Linux:   notify-send + paplay
+  - macOS:   osascript + afplay
+  - Windows: PowerShell toast notification + winsound
 """
 
 import subprocess, threading
 import os, sys
 
+
 def play_sound() -> None:
-    """Play a standard notification sound."""
+    """Play a standard notification sound (platform-aware)."""
     if sys.platform == 'win32':
         try:
             import winsound
-            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
         except Exception:
             pass
         return
-        
+
     if sys.platform == 'darwin':
         try:
             subprocess.run(["afplay", "/System/Library/Sounds/Glass.aiff"],
@@ -41,40 +47,88 @@ def play_sound() -> None:
                 pass
 
 
-def notify(sender: str, message: str) -> None:
-    """Fire a desktop notification for an incoming message (non-blocking)."""
-    try:
-        # Truncate long messages for notification
-        display_msg = message[:200] + "..." if len(message) > 200 else message
-        
-        # Play sound for all platforms
-        threading.Thread(target=play_sound, daemon=True).start()
-        
-        if sys.platform == 'win32':
-            # Windows: Audio only to keep it lightweight without external dependencies
-            return
-            
-        if sys.platform == 'darwin':
-            # macOS: AppleScript notification
-            # Escape double quotes for osascript
-            safe_msg = display_msg.replace('"', '\\"')
-            safe_sender = sender.replace('"', '\\"')
-            script = f'display notification "{safe_msg}" with title "Instagram · {safe_sender}"'
-            proc = subprocess.Popen(["osascript", "-e", script],
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            threading.Thread(target=proc.wait, daemon=True).start()
-            return
+def _notify_windows(sender: str, message: str) -> None:
+    """Show a Windows 10/11 toast notification using PowerShell (no extra deps)."""
+    # Escape single quotes for PowerShell
+    safe_title = f"Instagram · {sender}".replace("'", "''")
+    safe_msg = message.replace("'", "''")
 
-        # Linux: notify-send
+    ps_script = f"""
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+$template = @"
+<toast>
+  <visual>
+    <binding template="ToastGeneric">
+      <text>{safe_title}</text>
+      <text>{safe_msg}</text>
+    </binding>
+  </visual>
+</toast>
+"@
+
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($template)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Instagram Message Poller').Show($toast)
+"""
+    try:
+        proc = subprocess.Popen(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        )
+        threading.Thread(target=proc.wait, daemon=True).start()
+    except Exception:
+        pass
+
+
+def _notify_macos(sender: str, message: str) -> None:
+    """Show a macOS notification using osascript."""
+    safe_msg = message.replace('"', '\\"')
+    safe_sender = sender.replace('"', '\\"')
+    script = f'display notification "{safe_msg}" with title "Instagram · {safe_sender}"'
+    try:
+        proc = subprocess.Popen(["osascript", "-e", script],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        threading.Thread(target=proc.wait, daemon=True).start()
+    except Exception:
+        pass
+
+
+def _notify_linux(sender: str, message: str) -> None:
+    """Show a Linux notification using notify-send."""
+    try:
         proc = subprocess.Popen(
             ["notify-send", "-a", "Instagram",
-             f"Instagram · {sender}", display_msg,
-             "--icon=firefox", "-t", "5000"],
+             f"Instagram · {sender}", message,
+             "--icon=mail-message-new", "-t", "5000"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         # Reap child in background to avoid zombie processes
         threading.Thread(target=proc.wait, daemon=True).start()
-        
+    except Exception:
+        pass
+
+
+def notify(sender: str, message: str) -> None:
+    """Fire a desktop notification for an incoming message (non-blocking)."""
+    try:
+        # Truncate long messages for notification
+        display_msg = message[:200] + "..." if len(message) > 200 else message
+
+        # Play sound on all platforms
+        threading.Thread(target=play_sound, daemon=True).start()
+
+        # Show visual notification
+        if sys.platform == 'win32':
+            _notify_windows(sender, display_msg)
+        elif sys.platform == 'darwin':
+            _notify_macos(sender, display_msg)
+        else:
+            _notify_linux(sender, display_msg)
+
     except Exception:
         pass

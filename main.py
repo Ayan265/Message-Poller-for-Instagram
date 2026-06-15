@@ -48,9 +48,9 @@ Examples:
     parser.add_argument("--clean", action="store_true",
                         help="Deduplicate the saved messages file")
     parser.add_argument("--autostart", action="store_true",
-                        help="Install systemd autostart service")
+                        help="Auto-start poller on login (Linux/macOS/Windows)")
     parser.add_argument("--stop", action="store_true",
-                        help="Remove systemd autostart service")
+                        help="Remove auto-start service")
 
     parser.add_argument("--set-session", nargs="?", const="PROMPT", type=str, metavar="SESSION_ID",
                         help="Update Instagram session ID interactively or via argument")
@@ -82,8 +82,6 @@ Examples:
     if args.stop:
         cmd_stop()
         return
-
-
 
     if args.set_session:
         val = args.set_session
