@@ -22,6 +22,7 @@ import argparse
 
 from api     import get_session_id, set_session_id
 from poller  import run as run_poller
+from config import SESSION_FILE, SAVE_FILE, HEADERS
 from viewer  import (cmd_view, cmd_chat, cmd_contacts, cmd_clean)
 from service import cmd_autostart, cmd_stop
 

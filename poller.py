@@ -5,7 +5,8 @@ poller.py — Background polling thread and main display loop.
 import os, sys, time, queue, threading, random
 from datetime import datetime
 
-from config  import IDLE_INTERVAL, BURST_INTERVAL, BURST_TIMEOUT, BACKOFF_MAX
+from config import (POLL_FAST, POLL_WARM, POLL_IDLE, POLL_SLEEP, 
+                    TIMEOUT_WARM, TIMEOUT_IDLE, TIMEOUT_SLEEP, BACKOFF_MAX)
 from api     import (make_session, get_my_id,
                      fetch_inbox, fetch_pending, fetch_thread_items)
 from storage import save_msg, load_seen_ids, flush_seen_ids, is_seen_dirty, has_seen_msg
@@ -140,8 +141,8 @@ def poll_worker(session, my_id: str,
                 status_queue: queue.Queue,
                 stop_event: threading.Event) -> None:
     """Runs in a background thread. Polls messages with adaptive intervals."""
-    backoff    = IDLE_INTERVAL
-    last_msg_t = 0.0
+    backoff    = POLL_WARM
+    last_msg_t = time.monotonic()  # Start in warm mode
 
     while not stop_event.is_set():
         try:
@@ -157,9 +158,22 @@ def poll_worker(session, my_id: str,
                 if is_seen_dirty():
                     flush_seen_ids()
 
-            in_burst = (time.monotonic() - last_msg_t) < BURST_TIMEOUT
-            backoff  = BURST_INTERVAL if in_burst else IDLE_INTERVAL
-            mode     = "burst" if in_burst else "idle"
+            # Smart Adaptive Backoff
+            idle_time = time.monotonic() - last_msg_t
+            
+            if idle_time < TIMEOUT_WARM:
+                backoff = POLL_FAST
+                mode = "fast (3s)"
+            elif idle_time < TIMEOUT_IDLE:
+                backoff = POLL_WARM
+                mode = "warm (10s)"
+            elif idle_time < TIMEOUT_SLEEP:
+                backoff = POLL_IDLE
+                mode = "idle (30s)"
+            else:
+                backoff = POLL_SLEEP
+                mode = "sleep (90s)"
+
             status_queue.put(("ok", backoff, mode))
 
         except RuntimeError as e:
@@ -205,7 +219,7 @@ def run(session_id: str) -> None:
     print("=" * 58)
     print("  Instagram Message Poller")
     print(f"  Session  : {SESSION_FILE} ✓")
-    print(f"  Messages : ~{BURST_INTERVAL}s burst / ~{IDLE_INTERVAL}s idle (with jitter)")
+    print(f"  Messages : Adaptive ({POLL_FAST}s fast → {POLL_SLEEP}s deep sleep)")
     print(f"  Saving to: {SAVE_FILE}")
     print(f"  Ctrl+C to stop")
     print("=" * 58 + "\n")

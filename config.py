@@ -17,13 +17,19 @@ SEEN_FILE    = os.path.expanduser("~/ig_seen_ids.json")
 SERVICE_DIR  = os.path.expanduser("~/.config/systemd/user")
 SERVICE_FILE = os.path.join(SERVICE_DIR, "ig-poller.service")
 
-# ── Polling intervals ─────────────────────────────────────────────────────────
-# To reduce block/ban risk, intervals are longer and have random jitter applied.
-# Making requests too frequently or at exact intervals is a primary flag for bots.
-IDLE_INTERVAL  = 20    # seconds between polls when no new messages
-BURST_INTERVAL = 8     # seconds between polls during an active conversation
-BURST_TIMEOUT  = 120   # seconds of silence before reverting to idle
-BACKOFF_MAX    = 300   # max backoff on errors (seconds)
+# ── Smart Adaptive Polling Intervals ──────────────────────────────────────────
+# To catch unsent messages, the poller speeds up when you're actively chatting,
+# and slows down progressively when idle to protect your account from rate limits.
+POLL_FAST     = 3      # 3s: very fast during active typing/chatting
+POLL_WARM     = 10     # 10s: recently active
+POLL_IDLE     = 30     # 30s: baseline idle
+POLL_SLEEP    = 90     # 90s: deep sleep (no messages for a long time)
+
+TIMEOUT_WARM  = 45     # drop to warm if no msgs for 45s
+TIMEOUT_IDLE  = 180    # drop to idle if no msgs for 3 mins
+TIMEOUT_SLEEP = 900    # drop to sleep if no msgs for 15 mins
+
+BACKOFF_MAX   = 300    # max backoff on network errors (seconds)
 
 # ── Storage limits ────────────────────────────────────────────────────────────
 SAVE_MAX_MSGS  = 5000  # max messages kept in the JSON save file

@@ -178,9 +178,10 @@ All settings live in [`config.py`](config.py). Adjust to your needs:
 
 | Setting | Default | What It Controls |
 |---|---|---|
-| `IDLE_INTERVAL` | `20` sec | Time between polls when inbox is quiet |
-| `BURST_INTERVAL` | `8` sec | Time between polls during active conversations |
-| `BURST_TIMEOUT` | `120` sec | How long to stay in "burst mode" after new messages |
+| `POLL_FAST` | `3` sec | Time between polls during active chat (very fast) |
+| `POLL_WARM` | `10` sec | Time between polls when recently active |
+| `POLL_IDLE` | `30` sec | Time between polls when quiet |
+| `POLL_SLEEP` | `90` sec | Time between polls when no messages for a long time |
 | `SAVE_MAX_MSGS` | `5000` | Max messages stored locally (oldest auto-pruned) |
 | `BACKOFF_MAX` | `300` sec | Max delay on errors (exponential backoff) |
 
