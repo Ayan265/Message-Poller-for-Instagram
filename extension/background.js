@@ -103,11 +103,14 @@ async function checkForNewMessages() {
 function extractMessageText(item) {
   const itemType = item.item_type || "";
   if (itemType === "text") return (item.text || "").trim();
-  if (["voice_media", "clip"].includes(itemType)) return "🎤 [Voice Message]";
+  if (itemType === "voice_media") return "🎤 [Voice Message]";
+  if (itemType === "clip") return "🎬 [Reel/Clip]";
   if (["media", "raven_media", "visual_media"].includes(itemType)) return "📷 [Photo/Video]";
   if (itemType === "like") return "❤️ [Liked a message]";
   if (itemType === "animated_media") return "🎞️ [GIF/Sticker]";
   if (itemType === "reel_share") return "🔄 [Shared a Reel]";
+  if (itemType === "media_share") return "🖼️ [Shared a Post]";
+  if (itemType === "story_share") return "🔁 [Shared a Story]";
   if (itemType === "link") return "🔗 [Link]";
   if (itemType === "action_log") return `ℹ️ [${item.action_log?.description || 'Action'}]`;
   if (itemType === "placeholder") return `ℹ️ [Placeholder: ${item.placeholder?.message || 'Message'}]`;

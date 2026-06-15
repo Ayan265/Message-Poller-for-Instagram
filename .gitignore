@@ -1,5 +1,22 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+
+# Data dumps & personal files
+inbox_raw.json
+raw_dump_*.json
+full_chat_*.json
+clean_chat_*.json
+readable_chat_*.txt
+
+# Build artifacts
+*.zip

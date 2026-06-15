@@ -20,8 +20,10 @@ def _extract_message_text(item: dict) -> str:
     item_type = item.get("item_type", "")
     if item_type == "text":
         return item.get("text", "").strip()
-    if item_type in ("voice_media", "clip"):
+    if item_type == "voice_media":
         return "🎤 [Voice Message]"
+    if item_type == "clip":
+        return "🎬 [Reel/Clip]"
     if item_type in ("media", "raven_media", "visual_media"):
         return "📷 [Photo/Video]"
     if item_type == "like":
@@ -30,6 +32,10 @@ def _extract_message_text(item: dict) -> str:
         return "🎞️ [GIF/Sticker]"
     if item_type == "reel_share":
         return "🔄 [Shared a Reel]"
+    if item_type == "media_share":
+        return "🖼️ [Shared a Post]"
+    if item_type == "story_share":
+        return "🔁 [Shared a Story]"
     if item_type == "link":
         return "🔗 [Link]"
     if item_type == "action_log":

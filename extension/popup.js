@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
     messagesCount: 0
   };
 
+  // ── Splash removal ──────────────────────────────────────────────────────────
+  const splash = document.getElementById('splash-screen');
+  splash.addEventListener('animationend', () => {
+    splash.style.display = 'none';
+  });
+
   const serverDot = document.getElementById('server-dot');
   const serverText = document.getElementById('server-text');
   const refreshBtn = document.getElementById('refresh-btn');
@@ -116,10 +122,16 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionModal.style.display = 'flex';
     newSessionInput.value = '';
     newSessionInput.focus();
+    // Question zoom: remove + re-add class to retrigger animation
+    const mc = sessionModal.querySelector('.modal-content');
+    mc.classList.remove('animate-focus');
+    void mc.offsetWidth; // force reflow
+    mc.classList.add('animate-focus');
   }
 
   function hideSessionModal() {
     sessionModal.style.display = 'none';
+    sessionModal.querySelector('.modal-content').classList.remove('animate-focus');
   }
 
   async function saveNewSession() {
@@ -302,6 +314,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function showSkeletonLoader() {
+    inboxView.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)';
+      const av = document.createElement('div');
+      av.className = 'skeleton';
+      av.style.cssText = 'width:40px;height:40px;border-radius:50%;flex-shrink:0';
+      const det = document.createElement('div');
+      det.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:6px';
+      const n = document.createElement('div');
+      n.className = 'skeleton';
+      n.style.cssText = 'height:12px;width:60%;border-radius:6px';
+      const p = document.createElement('div');
+      p.className = 'skeleton';
+      p.style.cssText = 'height:10px;width:85%;border-radius:6px';
+      det.appendChild(n);
+      det.appendChild(p);
+      row.appendChild(av);
+      row.appendChild(det);
+      inboxView.appendChild(row);
+    }
+  }
+
   function renderInbox(messages) {
     if (!messages || messages.length === 0) {
       inboxView.innerHTML = '';
@@ -394,12 +430,16 @@ document.addEventListener('DOMContentLoaded', () => {
         unreadInd.className = 'unread-indicator';
         row.appendChild(unreadInd);
       }
+      // Stagger each row's slide-in animation
+      const rowIdx = inboxView.children.length;
+      row.style.animationDelay = (rowIdx * 55) + 'ms';
       row.addEventListener('click', () => openChat(contact));
       inboxView.appendChild(row);
     });
   }
 
-  async function loadMessages() {
+  async function loadMessages(showSkeleton) {
+    if (showSkeleton) showSkeletonLoader();
     try {
       if (isPremiumMode) {
         const data = await browser.runtime.sendNativeMessage(
@@ -540,6 +580,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   aboutBtn.addEventListener('click', () => {
     aboutModal.style.display = 'flex';
+    // Question zoom on about modal too
+    const mc = aboutModal.querySelector('.modal-content');
+    mc.classList.remove('animate-focus');
+    void mc.offsetWidth;
+    mc.classList.add('animate-focus');
   });
 
   closeAboutBtn.addEventListener('click', () => {
@@ -572,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Initialization ───────────────────────────────────────────────────────────
 
   checkSessionStatus().then(() => {
-    loadMessages();
+    loadMessages(true); // show skeleton on first load
   });
 
   // Poll every 5 seconds for updated messages from storage
