@@ -9,8 +9,8 @@ Usage:
   python3 main.py --contacts           List all contacts with message counts
   python3 main.py --clean              Deduplicate the saved messages file
   python3 main.py --set-session <ID>   Update your session cookie
-  python3 main.py --autostart          Install systemd autostart service (Linux)
-  python3 main.py --stop               Remove systemd autostart service (Linux)
+  python3 main.py --autostart          Auto-start on login (Linux/macOS/Windows)
+  python3 main.py --stop               Remove auto-start service
 """
 
 import sys, os
@@ -101,8 +101,13 @@ Examples:
     session_id = get_session_id()
     if not session_id:
         print("\n❌  No session cookie found.")
-        print("Please provide your sessionid (Find it in your browser: F12 -> Storage -> Cookies -> sessionid)")
-        val = input("Paste sessionid: ").strip()
+        print("\n   How to get your sessionid:")
+        print("   1. Open instagram.com in your browser and log in")
+        print("   2. Press F12 to open Developer Tools")
+        print("   3. Go to Application → Cookies (Chrome/Edge)")
+        print("      or Storage → Cookies (Firefox)")
+        print("   4. Find 'sessionid' and copy its value\n")
+        val = input("Paste your sessionid here: ").strip()
         if val and set_session_id(val):
             print("✅  Session saved successfully!\n")
             session_id = val

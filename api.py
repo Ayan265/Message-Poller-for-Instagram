@@ -43,7 +43,10 @@ def make_session(session_id: str):
         import requests
         from requests.adapters import HTTPAdapter
     except ImportError:
-        print("❌  Run:  pip3 install requests --break-system-packages")
+        if sys.platform == 'win32':
+            print("❌  Missing dependency. Run:  pip install requests")
+        else:
+            print("❌  Missing dependency. Run:  pip3 install -r requirements.txt")
         sys.exit(1)
 
     s = requests.Session()

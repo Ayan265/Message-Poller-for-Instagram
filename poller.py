@@ -165,7 +165,8 @@ def poll_worker(session, my_id: str,
         except RuntimeError as e:
             err = str(e)
             if err == "SESSION_EXPIRED":
-                status_queue.put(("fatal", 0, "Session expired — update ~/.ig_session"))
+                from config import SESSION_FILE
+                status_queue.put(("fatal", 0, f"Session expired — get a fresh sessionid from your browser and run:\n         python3 main.py --set-session YOUR_NEW_ID\n         (Session file: {SESSION_FILE})"))
                 stop_event.set()
                 return
             elif err == "RATE_LIMITED":
@@ -192,18 +193,21 @@ def run(session_id: str) -> None:
     try:
         import requests  # noqa: F401
     except ImportError:
-        print("❌  Run:  pip3 install requests --break-system-packages")
+        if sys.platform == 'win32':
+            print("❌  Missing dependency. Run:  pip install requests")
+        else:
+            print("❌  Missing dependency. Run:  pip3 install -r requirements.txt")
         sys.exit(1)
 
     load_seen_ids()
 
-    from config import SAVE_FILE
+    from config import SAVE_FILE, SESSION_FILE
     print("=" * 58)
-    print("  Instagram Poller v5 (Stealth)")
-    print(f"  Session  : ~/.ig_session ✓")
+    print("  Instagram Message Poller")
+    print(f"  Session  : {SESSION_FILE} ✓")
     print(f"  Messages : ~{BURST_INTERVAL}s burst / ~{IDLE_INTERVAL}s idle (with jitter)")
     print(f"  Saving to: {SAVE_FILE}")
-    print("  Ctrl+C to stop")
+    print(f"  Ctrl+C to stop")
     print("=" * 58 + "\n")
 
     session        = make_session(session_id)
@@ -240,7 +244,7 @@ def run(session_id: str) -> None:
                 msg = msg_queue.get_nowait()
                 print(" " * 72, end="\r")
 
-                msg_type = msg.get("type", "msg")
+
 
                 if msg["is_mine"]:
                     print(f"📤  [{msg['ts']}]  {C_GREEN}YOU{C_RESET} → {C_CYAN}{msg['sender']}{C_RESET}: {msg['text']}")
