@@ -178,10 +178,10 @@ All settings live in [`config.py`](config.py). Adjust to your needs:
 
 | Setting | Default | What It Controls |
 |---|---|---|
-| `POLL_FAST` | `3` sec | Time between polls during active chat (very fast) |
-| `POLL_WARM` | `10` sec | Time between polls when recently active |
-| `POLL_IDLE` | `30` sec | Time between polls when quiet |
-| `POLL_SLEEP` | `90` sec | Time between polls when no messages for a long time |
+| `POLL_FAST` | `2.5` sec | Time between polls during active chat (ultra-fast) |
+| `POLL_WARM` | `6` sec | Time between polls when recently active |
+| `POLL_IDLE` | `12` sec | Time between polls when quiet |
+| `POLL_SLEEP` | `18` sec | Maximum delay even when no messages for a long time |
 | `SAVE_MAX_MSGS` | `5000` | Max messages stored locally (oldest auto-pruned) |
 | `BACKOFF_MAX` | `300` sec | Max delay on errors (exponential backoff) |
 

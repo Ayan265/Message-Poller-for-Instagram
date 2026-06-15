@@ -163,16 +163,16 @@ def poll_worker(session, my_id: str,
             
             if idle_time < TIMEOUT_WARM:
                 backoff = POLL_FAST
-                mode = "fast (3s)"
+                mode = "fast (2.5s)"
             elif idle_time < TIMEOUT_IDLE:
                 backoff = POLL_WARM
-                mode = "warm (10s)"
+                mode = "warm (6s)"
             elif idle_time < TIMEOUT_SLEEP:
                 backoff = POLL_IDLE
-                mode = "idle (30s)"
+                mode = "idle (12s)"
             else:
                 backoff = POLL_SLEEP
-                mode = "sleep (90s)"
+                mode = "sleep (18s)"
 
             status_queue.put(("ok", backoff, mode))
 
@@ -194,10 +194,19 @@ def poll_worker(session, my_id: str,
             backoff = min(backoff * 2, BACKOFF_MAX)
             status_queue.put(("warn", backoff, f"Network error: {e}"))
 
-        # Add random jitter to the interval to avoid making requests at exact,
-        # predictable times, which can be a flag for bot detection.
-        jitter = random.uniform(-0.3, 0.4) * backoff  # -30% to +40% jitter
-        stop_event.wait(max(5, backoff + jitter))  # Ensure wait is never too short
+        # Heavy Randomization (Jitter)
+        # We apply massive random shifts so the timing never looks like a bot,
+        # while keeping the average speed fast enough to catch unsent messages.
+        if "fast" in mode:
+            # Tight, aggressive randomness during chat (+/- 1 second)
+            jitter = random.uniform(-1.0, 1.5)
+        else:
+            # Extreme human-like randomness when idle (+/- 45% of backoff)
+            jitter = random.uniform(-0.45, 0.45) * backoff
+
+        # We allow it to go as fast as 1.5s, rather than the old hard limit of 5s
+        final_wait = max(1.5, backoff + jitter)
+        stop_event.wait(final_wait)
 
 
 # ── Main display loop ─────────────────────────────────────────────────────────

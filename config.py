@@ -18,16 +18,15 @@ SERVICE_DIR  = os.path.expanduser("~/.config/systemd/user")
 SERVICE_FILE = os.path.join(SERVICE_DIR, "ig-poller.service")
 
 # ── Smart Adaptive Polling Intervals ──────────────────────────────────────────
-# To catch unsent messages, the poller speeds up when you're actively chatting,
-# and slows down progressively when idle to protect your account from rate limits.
-POLL_FAST     = 3      # 3s: very fast during active typing/chatting
-POLL_WARM     = 10     # 10s: recently active
-POLL_IDLE     = 30     # 30s: baseline idle
-POLL_SLEEP    = 90     # 90s: deep sleep (no messages for a long time)
+# Tuned to run 24/7 without missing unsent messages, using heavy randomness.
+POLL_FAST     = 2.5    # 2.5s: ultra-fast during active chatting
+POLL_WARM     = 6      # 6s: recently active
+POLL_IDLE     = 12     # 12s: baseline idle
+POLL_SLEEP    = 18     # 18s: maximum delay even when quiet (never wait too long)
 
-TIMEOUT_WARM  = 45     # drop to warm if no msgs for 45s
-TIMEOUT_IDLE  = 180    # drop to idle if no msgs for 3 mins
-TIMEOUT_SLEEP = 900    # drop to sleep if no msgs for 15 mins
+TIMEOUT_WARM  = 60     # drop to warm if no msgs for 1 min
+TIMEOUT_IDLE  = 300    # drop to idle if no msgs for 5 mins
+TIMEOUT_SLEEP = 1200   # drop to sleep if no msgs for 20 mins
 
 BACKOFF_MAX   = 300    # max backoff on network errors (seconds)
 
