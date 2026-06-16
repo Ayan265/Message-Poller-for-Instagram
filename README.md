@@ -129,9 +129,10 @@ python3 fetch_full_chats.py username
 ```
 > 🪟 **Windows Users:** Run `python fetch_full_chats.py username`
 
-This saves two files directly to your **Downloads** folder:
+This saves three files directly to your **Downloads** folder:
 - `readable_chat_username.txt` — human-readable transcript
 - `clean_chat_username.json` — structured JSON for analysis
+- `raw_dump_username.json` — raw Instagram API data backup
 
 Anti-ban delays are built in automatically.
 
