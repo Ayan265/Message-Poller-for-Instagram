@@ -70,7 +70,7 @@ pip install -r requirements.txt
 
 Toast notifications work out of the box on Windows 10/11.
 
-**Note:** On Windows, use `python` instead of `python3` for all commands below.
+> ⚠️ **IMPORTANT NOTE FOR WINDOWS:** Throughout this guide, commands are written using `python3` (which is standard for Linux/macOS). **On Windows, you must use `python` instead.** For example, type `python main.py` instead of `python3 main.py`.
 </details>
 
 ### 3. Get Your Instagram Session ID
@@ -86,6 +86,8 @@ You need your `sessionid` cookie from Instagram. Here's how:
 5. Copy its **Value** (it looks like a long string of numbers and letters)
 
 ### 4. Start the Poller
+
+> 🪟 **Windows Users:** Remember to use `python` instead of `python3` for all commands below (e.g., `python main.py`).
 
 ```bash
 python3 main.py
@@ -103,6 +105,8 @@ python3 main.py --set-session YOUR_SESSION_ID
 ---
 
 ## 💻 All Commands
+
+> 🪟 **Windows Users:** Remember to use `python` instead of `python3` for all commands in this table.
 
 | Command | What It Does |
 |---|---|
@@ -123,6 +127,7 @@ Download your **entire** message history with any contact:
 ```bash
 python3 fetch_full_chats.py username
 ```
+> 🪟 **Windows Users:** Run `python fetch_full_chats.py username`
 
 This creates two files:
 - `readable_chat_username.txt` — human-readable transcript
@@ -144,6 +149,7 @@ To remove auto-start:
 ```bash
 python3 main.py --stop
 ```
+> 🪟 **Windows Users:** Remember to use `python` instead of `python3`.
 
 | OS | How It Works |
 |---|---|
