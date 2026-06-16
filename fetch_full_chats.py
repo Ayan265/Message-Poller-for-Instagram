@@ -72,8 +72,11 @@ def format_chat(username, raw_data):
     data = list(reversed(raw_data))
     clean_data = []
     
-    out_txt = f"readable_chat_{username}.txt"
-    out_json = f"clean_chat_{username}.json"
+    downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+    os.makedirs(downloads_dir, exist_ok=True)
+    
+    out_txt = os.path.join(downloads_dir, f"readable_chat_{username}.txt")
+    out_json = os.path.join(downloads_dir, f"clean_chat_{username}.json")
     
     with open(out_txt, "w", encoding="utf-8") as ft:
         ft.write(f"FULL CHAT HISTORY: {username}\n")
@@ -170,7 +173,9 @@ def fetch_full_thread(session, thread_id, username):
                 break
                 
             # Intermediate save just in case
-            out_file = f"raw_dump_{username}.json"
+            downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+            os.makedirs(downloads_dir, exist_ok=True)
+            out_file = os.path.join(downloads_dir, f"raw_dump_{username}.json")
             with open(out_file, "w", encoding="utf-8") as f:
                 json.dump(messages, f, indent=2, ensure_ascii=False)
                 
@@ -188,7 +193,9 @@ def fetch_full_thread(session, thread_id, username):
             break
             
     # Final raw save
-    out_file = f"raw_dump_{username}.json"
+    downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+    os.makedirs(downloads_dir, exist_ok=True)
+    out_file = os.path.join(downloads_dir, f"raw_dump_{username}.json")
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(messages, f, indent=2, ensure_ascii=False)
         
